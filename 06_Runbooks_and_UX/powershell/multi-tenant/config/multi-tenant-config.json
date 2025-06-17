@@ -1,0 +1,160 @@
+{
+  "proxmox": {
+    "api_url": "https://your-proxmox-cluster.local:8006/api2/json",
+    "username": "root@pam",
+    "password": "your-proxmox-password",
+    "node": "pve-node1",
+    "storage_pool": "local-lvm",
+    "ceph_pool": "ceph-siem",
+    "network_bridge": "vmbr0"
+  },
+  "cluster": {
+    "node_count": 3,
+    "nodes": [
+      "pve-node1",
+      "pve-node2", 
+      "pve-node3"
+    ]
+  },
+  "deployment": {
+    "environment": "production",
+    "ssh_public_key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQ... your-public-key",
+    "ssh_private_key": "~/.ssh/siem_platform_key",
+    "timezone": "UTC"
+  },
+  "tenant_resources": {
+    "wazuh_manager": {
+      "cores": 4,
+      "memory": 8192,
+      "disk": "100G"
+    },
+    "wazuh_indexer": {
+      "cores": 8,
+      "memory": 16384,
+      "disk": "500G"
+    },
+    "graylog": {
+      "cores": 4,
+      "memory": 8192,
+      "disk": "100G"
+    },
+    "mongodb": {
+      "cores": 2,
+      "memory": 4096,
+      "disk": "50G"
+    },
+    "grafana": {
+      "cores": 2,
+      "memory": 4096,
+      "disk": "20G"
+    },
+    "thehive": {
+      "cores": 4,
+      "memory": 8192,
+      "disk": "100G"
+    },
+    "cortex": {
+      "cores": 4,
+      "memory": 8192,
+      "disk": "50G"
+    },
+    "cassandra": {
+      "cores": 8,
+      "memory": 16384,
+      "disk": "500G"
+    }
+  },
+  "passwords": {
+    "wazuh_admin": "SecureWazuhPassword123!",
+    "graylog_admin": "SecureGraylogPassword123!",
+    "grafana_admin": "SecureGrafanaPassword123!",
+    "thehive_admin": "SecureTheHivePassword123!",
+    "opencti_admin": "SecureOpenCTIPassword123!",
+    "misp_admin": "SecureMISPPassword123!",
+    "cassandra_admin": "SecureCassandraPassword123!"
+  },
+  "features": {
+    "enable_ha": true,
+    "enable_backup": true,
+    "enable_monitoring": true,
+    "log_retention_days": 365,
+    "auto_scaling": true,
+    "load_balancing": true
+  },
+  "networking": {
+    "tenant_isolation": "evpn",
+    "vlan_range": {
+      "start": 100,
+      "end": 199
+    },
+    "subnet_base": "10.0.100.0/22",
+    "management_network": "10.0.1.0/24"
+  },
+  "storage": {
+    "type": "ceph",
+    "replication_factor": 3,
+    "backup_retention_days": 30,
+    "snapshot_schedule": "daily"
+  },
+  "integrations": {
+    "slack": {
+      "enabled": true,
+      "webhook_url": "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK",
+      "channel": "#security-alerts"
+    },
+    "email": {
+      "enabled": true,
+      "smtp_server": "smtp.company.com",
+      "smtp_port": 587,
+      "username": "siem@company.com",
+      "password": "smtp-password",
+      "from_address": "siem@company.com",
+      "to_addresses": ["admin@company.com"]
+    },
+    "pagerduty": {
+      "enabled": true,
+      "integration_key": "your-pagerduty-integration-key"
+    },
+    "servicenow": {
+      "enabled": false,
+      "instance_url": "https://your-instance.service-now.com",
+      "username": "siem-integration",
+      "password": "servicenow-password"
+    }
+  },
+  "security": {
+    "firewall_enabled": true,
+    "allowed_networks": [
+      "10.0.0.0/8",
+      "172.16.0.0/12",
+      "192.168.0.0/16"
+    ],
+    "ssl_enabled": true,
+    "certificate_path": "/etc/ssl/certs/siem.crt",
+    "private_key_path": "/etc/ssl/private/siem.key",
+    "tenant_isolation": true,
+    "rbac_enabled": true
+  },
+  "monitoring": {
+    "prometheus_enabled": true,
+    "grafana_enabled": true,
+    "alertmanager_enabled": true,
+    "log_aggregation": true,
+    "metrics_retention_days": 90
+  },
+  "backup": {
+    "enabled": true,
+    "schedule": "0 2 * * *",
+    "retention_days": 30,
+    "storage_location": "/backup/siem",
+    "encryption_enabled": true
+  },
+  "scaling": {
+    "auto_scaling_enabled": true,
+    "min_tenants": 1,
+    "max_tenants": 50,
+    "scale_up_threshold": 80,
+    "scale_down_threshold": 30
+  }
+}
+

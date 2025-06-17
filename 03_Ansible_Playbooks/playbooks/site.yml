@@ -1,0 +1,103 @@
+---
+# Master Ansible Playbook for Complete SIEM Platform Deployment
+
+- name: Deploy Complete SIEM Platform
+  hosts: localhost
+  gather_facts: no
+  vars:
+    deployment_mode: "{{ deployment_mode | default('single-node') }}"
+    tenant_count: "{{ tenant_count | default(1) }}"
+    
+  tasks:
+    - name: Display deployment information
+      debug:
+        msg: |
+          Starting SIEM Platform deployment
+          Mode: {{ deployment_mode }}
+          Tenant Count: {{ tenant_count }}
+          Target Environment: {{ environment | default('development') }}
+
+# Single Node Deployment
+- import_playbook: single-node-deploy.yml
+  when: deployment_mode == "single-node"
+
+# Multi-Tenant Deployment
+- import_playbook: multi-tenant-deploy.yml
+  when: deployment_mode == "multi-tenant"
+
+# Post-deployment configuration
+- name: Post-deployment Configuration
+  hosts: siem_platform
+  become: yes
+  tasks:
+    - name: Verify all services are running
+      systemd:
+        name: "{{ item }}"
+        state: started
+      loop:
+        - wazuh-manager
+        - wazuh-indexer
+        - graylog-server
+        - thehive
+        - grafana-server
+      ignore_errors: yes
+
+    - name: Create platform status script
+      copy:
+        content: |
+          #!/bin/bash
+          # SIEM Platform Status Check Script
+          
+          echo "=== SIEM Platform Status ==="
+          echo "Deployment Mode: {{ deployment_mode }}"
+          echo "Date: $(date)"
+          echo ""
+          
+          # Check services
+          services=("wazuh-manager" "wazuh-indexer" "graylog-server" "thehive" "grafana-server")
+          
+          for service in "${services[@]}"; do
+              if systemctl is-active --quiet $service; then
+                  echo "✓ $service: Running"
+              else
+                  echo "✗ $service: Stopped"
+              fi
+          done
+          
+          echo ""
+          echo "=== Network Connectivity ==="
+          
+          # Check ports
+          ports=("1514" "9200" "9000" "3000")
+          
+          for port in "${ports[@]}"; do
+              if netstat -tuln | grep -q ":$port "; then
+                  echo "✓ Port $port: Open"
+              else
+                  echo "✗ Port $port: Closed"
+              fi
+          done
+          
+          echo ""
+          echo "=== Disk Usage ==="
+          df -h | grep -E "(/$|/opt|/var)"
+          
+          echo ""
+          echo "=== Memory Usage ==="
+          free -h
+        dest: /opt/siem-status.sh
+        mode: '0755'
+
+    - name: Display deployment completion message
+      debug:
+        msg: |
+          SIEM Platform deployment completed successfully!
+          
+          Access URLs:
+          - Wazuh Dashboard: https://{{ ansible_default_ipv4.address }}:443
+          - Graylog: http://{{ ansible_default_ipv4.address }}:9000
+          - Grafana: http://{{ ansible_default_ipv4.address }}:3000
+          - TheHive: http://{{ ansible_default_ipv4.address }}:9000
+          
+          Run '/opt/siem-status.sh' to check platform status
+

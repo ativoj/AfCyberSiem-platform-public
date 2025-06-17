@@ -1,0 +1,247 @@
+---
+# Ansible Playbook for TheHive Installation and Configuration
+
+- name: Install and Configure TheHive
+  hosts: thehive_servers
+  become: yes
+  vars:
+    thehive_version: "5.2.0"
+    thehive_port: 9000
+    thehive_admin_username: "admin@thehive.local"
+    thehive_admin_password: "{{ thehive_admin_password | default('admin') }}"
+    thehive_secret_key: "{{ thehive_secret_key | default('changeme') }}"
+    thehive_data_dir: "/opt/thp/thehive/data"
+    thehive_log_dir: "/var/log/thehive"
+    cassandra_hosts: "{{ groups['cassandra_servers'] | default(['localhost']) }}"
+    cortex_url: "http://{{ groups['cortex_servers'][0] if groups['cortex_servers'] is defined else 'localhost' }}:9001"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - curl
+          - wget
+          - gnupg
+          - apt-transport-https
+          - openjdk-11-jdk
+          - python3
+          - python3-pip
+        state: present
+
+    - name: Set JAVA_HOME environment variable
+      lineinfile:
+        path: /etc/environment
+        line: 'JAVA_HOME="/usr/lib/jvm/java-11-openjdk-amd64"'
+        create: yes
+
+    - name: Add TheHive GPG key
+      apt_key:
+        url: https://raw.githubusercontent.com/TheHive-Project/TheHive/master/PGP-PUBLIC-KEY
+        state: present
+
+    - name: Add TheHive repository
+      apt_repository:
+        repo: "deb https://deb.thehive-project.org release main"
+        state: present
+        filename: thehive
+
+    - name: Update apt cache after adding repository
+      apt:
+        update_cache: yes
+
+    - name: Install TheHive
+      apt:
+        name: thehive5
+        state: present
+
+    - name: Create TheHive user
+      user:
+        name: thehive
+        system: yes
+        shell: /bin/false
+        home: /opt/thp/thehive
+        create_home: yes
+
+    - name: Create TheHive directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: thehive
+        group: thehive
+        mode: '0755'
+      loop:
+        - "{{ thehive_data_dir }}"
+        - "{{ thehive_log_dir }}"
+        - "/etc/thehive"
+
+    - name: Generate TheHive secret key if not provided
+      shell: cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 64 | head -n 1
+      register: generated_secret_key
+      when: thehive_secret_key == 'changeme'
+
+    - name: Set secret key
+      set_fact:
+        thehive_secret_key: "{{ generated_secret_key.stdout }}"
+      when: generated_secret_key is defined and generated_secret_key.stdout is defined
+
+    - name: Configure TheHive
+      template:
+        src: thehive.conf.j2
+        dest: /etc/thehive/application.conf
+        owner: thehive
+        group: thehive
+        mode: '0644'
+        backup: yes
+      notify: restart thehive
+
+    - name: Create TheHive systemd service
+      copy:
+        content: |
+          [Unit]
+          Description=TheHive Security Incident Response Platform
+          After=network.target cassandra.service
+          
+          [Service]
+          Type=simple
+          User=thehive
+          Group=thehive
+          ExecStart=/opt/thp/thehive/bin/thehive \
+                    -Dconfig.file=/etc/thehive/application.conf \
+                    -Dlogger.file=/etc/thehive/logback.xml \
+                    -Dpidfile.path=/dev/null
+          ExecStop=/bin/kill -15 $MAINPID
+          Restart=on-failure
+          RestartSec=5
+          KillMode=process
+          
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/thehive.service
+        mode: '0644'
+      notify: restart thehive
+
+    - name: Configure TheHive logging
+      copy:
+        content: |
+          <configuration>
+              <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+                  <encoder>
+                      <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n</pattern>
+                  </encoder>
+              </appender>
+              
+              <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+                  <file>{{ thehive_log_dir }}/thehive.log</file>
+                  <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+                      <fileNamePattern>{{ thehive_log_dir }}/thehive.%d{yyyy-MM-dd}.log</fileNamePattern>
+                      <maxHistory>30</maxHistory>
+                  </rollingPolicy>
+                  <encoder>
+                      <pattern>%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n</pattern>
+                  </encoder>
+              </appender>
+              
+              <root level="INFO">
+                  <appender-ref ref="STDOUT" />
+                  <appender-ref ref="FILE" />
+              </root>
+          </configuration>
+        dest: /etc/thehive/logback.xml
+        owner: thehive
+        group: thehive
+        mode: '0644'
+
+    - name: Configure firewall for TheHive
+      ufw:
+        rule: allow
+        port: "{{ thehive_port }}"
+        proto: tcp
+
+    - name: Enable and start TheHive service
+      systemd:
+        name: thehive
+        enabled: yes
+        state: started
+        daemon_reload: yes
+
+    - name: Wait for TheHive to be ready
+      wait_for:
+        port: "{{ thehive_port }}"
+        host: "{{ ansible_default_ipv4.address }}"
+        delay: 30
+        timeout: 300
+
+    - name: Check TheHive health
+      uri:
+        url: "http://{{ ansible_default_ipv4.address }}:{{ thehive_port }}/api/status"
+        method: GET
+        status_code: 200
+      register: thehive_health
+      retries: 5
+      delay: 10
+
+    - name: Create TheHive admin user
+      uri:
+        url: "http://{{ ansible_default_ipv4.address }}:{{ thehive_port }}/api/user"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          login: "{{ thehive_admin_username }}"
+          name: "Administrator"
+          roles: ["admin"]
+          password: "{{ thehive_admin_password }}"
+        status_code: [201, 400]
+
+    - name: Create TheHive backup script
+      copy:
+        content: |
+          #!/bin/bash
+          # TheHive backup script
+          
+          BACKUP_DIR="/opt/thehive-backups"
+          DATE=$(date +%Y%m%d_%H%M%S)
+          BACKUP_FILE="thehive-backup-${DATE}.tar.gz"
+          
+          mkdir -p ${BACKUP_DIR}
+          
+          # Stop TheHive service
+          systemctl stop thehive
+          
+          # Backup TheHive configuration and data
+          tar -czf ${BACKUP_DIR}/${BACKUP_FILE} \
+              /etc/thehive/ \
+              {{ thehive_data_dir }}/ \
+              --exclude={{ thehive_log_dir }}/
+          
+          # Start TheHive service
+          systemctl start thehive
+          
+          # Remove old backups (keep last 7 days)
+          find ${BACKUP_DIR} -name "thehive-backup-*.tar.gz" -mtime +7 -delete
+          
+          echo "Backup completed: ${BACKUP_DIR}/${BACKUP_FILE}"
+        dest: /opt/thehive-backup.sh
+        mode: '0755'
+
+    - name: Schedule TheHive backup
+      cron:
+        name: "TheHive backup"
+        minute: "45"
+        hour: "3"
+        job: "/opt/thehive-backup.sh"
+        user: root
+
+  handlers:
+    - name: restart thehive
+      systemd:
+        name: thehive
+        state: restarted
+        daemon_reload: yes
+

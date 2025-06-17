@@ -1,0 +1,83 @@
+# Example terraform.tfvars file for SIEM Platform deployment
+
+# Proxmox connection settings
+proxmox_api_url      = "https://your-proxmox.local:8006/api2/json"
+proxmox_user         = "root@pam"
+proxmox_password     = "your-proxmox-password"
+proxmox_tls_insecure = true
+proxmox_node         = "pve"
+
+# Deployment configuration
+deployment_mode = "single-node"  # or "multi-tenant"
+environment     = "production"   # dev, staging, production
+node_count      = 3              # for multi-tenant deployment
+tenant_count    = 5              # number of tenants
+
+# Network configuration
+network_bridge       = "vmbr0"
+network_cidr         = "10.0.0.0/16"
+management_subnet    = "10.0.1.0/24"
+tenant_subnet_base   = "10.0.100.0/22"
+
+# Storage configuration
+storage_pool = "local-lvm"  # for single-node
+ceph_pool    = "ceph-siem"  # for multi-tenant
+
+# Template and access configuration
+ubuntu_template_name = "ubuntu-22.04-cloudinit"
+ssh_public_key       = "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQ... your-public-key"
+timezone             = "UTC"
+
+# Resource allocation for single-node
+single_node_resources = {
+  cores  = 32
+  memory = 65536  # 64GB
+  disk   = "1T"
+}
+
+# High availability settings
+enable_ha = true
+ha_group = {
+  group    = "siem-ha"
+  priority = 100
+}
+
+# Backup configuration
+backup_schedule = {
+  enabled  = true
+  schedule = "daily"
+  storage  = "backup-storage"
+  keep     = 14
+}
+
+# Security settings
+firewall_enabled = true
+allowed_networks = [
+  "10.0.0.0/8",
+  "172.16.0.0/12", 
+  "192.168.0.0/16"
+]
+
+# Monitoring settings
+monitoring_enabled   = true
+log_retention_days   = 365
+
+# External integrations (optional)
+external_integrations = {
+  slack = {
+    enabled  = true
+    endpoint = "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+    api_key  = "your-slack-api-key"
+  }
+  teams = {
+    enabled  = false
+    endpoint = ""
+    api_key  = ""
+  }
+  pagerduty = {
+    enabled  = true
+    endpoint = "https://events.pagerduty.com/integration/YOUR-KEY/enqueue"
+    api_key  = "your-pagerduty-key"
+  }
+}
+

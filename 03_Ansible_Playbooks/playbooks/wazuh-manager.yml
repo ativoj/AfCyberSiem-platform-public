@@ -1,0 +1,312 @@
+---
+# Ansible Playbook for Wazuh Manager Installation and Configuration
+
+- name: Install and Configure Wazuh Manager
+  hosts: wazuh_managers
+  become: yes
+  vars:
+    wazuh_version: "4.8.0"
+    wazuh_manager_port: 1514
+    wazuh_api_port: 55000
+    wazuh_cluster_disabled: false
+    wazuh_cluster_name: "wazuh-cluster"
+    wazuh_cluster_node_name: "{{ inventory_hostname }}"
+    wazuh_cluster_node_type: "master"
+    wazuh_cluster_key: "{{ wazuh_cluster_key | default('your-32-character-key-here') }}"
+    wazuh_cluster_port: 1516
+    wazuh_cluster_bind_addr: "{{ ansible_default_ipv4.address }}"
+    wazuh_cluster_nodes:
+      - "{{ ansible_default_ipv4.address }}"
+    wazuh_manager_config:
+      global:
+        jsonout_output: "yes"
+        alerts_log: "yes"
+        logall: "no"
+        logall_json: "no"
+        email_notification: "no"
+        smtp_server: "localhost"
+        email_from: "wazuh@{{ ansible_fqdn }}"
+        email_to: "admin@{{ ansible_fqdn }}"
+        email_maxperhour: "12"
+        email_log_source: "alerts.log"
+      alerts:
+        log_alert_level: 3
+        email_alert_level: 12
+      remote:
+        connection: "secure"
+        port: "{{ wazuh_manager_port }}"
+        protocol: "tcp"
+        queue_size: 131072
+      rootcheck:
+        disabled: "no"
+        check_files: "yes"
+        check_trojans: "yes"
+        check_dev: "yes"
+        check_sys: "yes"
+        check_pids: "yes"
+        check_ports: "yes"
+        check_if: "yes"
+        frequency: 43200
+      wodle_ciscat:
+        disabled: "yes"
+        timeout: 1800
+        interval: "1d"
+        scan_on_start: "yes"
+        java_path: "/usr/lib/jvm/java-1.8.0-openjdk-amd64/jre/bin"
+        ciscat_path: "/var/ossec/wodles/ciscat"
+      wodle_osquery:
+        disabled: "yes"
+        run_daemon: "yes"
+        log_path: "/var/log/osquery/osqueryd.results.log"
+        config_path: "/etc/osquery/osquery.conf"
+        add_labels: "yes"
+      wodle_syscollector:
+        disabled: "no"
+        interval: "1h"
+        scan_on_start: "yes"
+        hardware: "yes"
+        os: "yes"
+        network: "yes"
+        packages: "yes"
+        ports: "all"
+        processes: "yes"
+      wodle_vulnerability_detector:
+        disabled: "no"
+        interval: "5m"
+        ignore_time: "6h"
+        run_on_start: "yes"
+        providers:
+          - enabled: "yes"
+            os:
+              - "trusty"
+              - "xenial"
+              - "bionic"
+              - "focal"
+              - "jammy"
+            update_interval: "1h"
+            url:
+              - "https://packages.wazuh.com/deps/vulnerability-detector/ubuntu/trusty/main/binary-amd64/"
+              - "https://packages.wazuh.com/deps/vulnerability-detector/ubuntu/xenial/main/binary-amd64/"
+              - "https://packages.wazuh.com/deps/vulnerability-detector/ubuntu/bionic/main/binary-amd64/"
+              - "https://packages.wazuh.com/deps/vulnerability-detector/ubuntu/focal/main/binary-amd64/"
+              - "https://packages.wazuh.com/deps/vulnerability-detector/ubuntu/jammy/main/binary-amd64/"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - curl
+          - apt-transport-https
+          - lsb-release
+          - gnupg
+          - software-properties-common
+        state: present
+
+    - name: Add Wazuh GPG key
+      apt_key:
+        url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
+        state: present
+
+    - name: Add Wazuh repository
+      apt_repository:
+        repo: "deb https://packages.wazuh.com/4.x/apt/ stable main"
+        state: present
+        filename: wazuh
+
+    - name: Update apt cache after adding repository
+      apt:
+        update_cache: yes
+
+    - name: Install Wazuh Manager
+      apt:
+        name: wazuh-manager={{ wazuh_version }}-*
+        state: present
+        allow_downgrade: yes
+
+    - name: Create Wazuh configuration directory
+      file:
+        path: /var/ossec/etc
+        state: directory
+        owner: ossec
+        group: ossec
+        mode: '0750'
+
+    - name: Generate Wazuh Manager configuration
+      template:
+        src: ossec.conf.j2
+        dest: /var/ossec/etc/ossec.conf
+        owner: ossec
+        group: ossec
+        mode: '0640'
+        backup: yes
+      notify: restart wazuh-manager
+
+    - name: Configure Wazuh cluster
+      template:
+        src: cluster.json.j2
+        dest: /var/ossec/etc/cluster.json
+        owner: ossec
+        group: ossec
+        mode: '0640'
+        backup: yes
+      when: not wazuh_cluster_disabled
+      notify: restart wazuh-manager
+
+    - name: Create custom rules directory
+      file:
+        path: /var/ossec/etc/rules
+        state: directory
+        owner: ossec
+        group: ossec
+        mode: '0750'
+
+    - name: Create custom decoders directory
+      file:
+        path: /var/ossec/etc/decoders
+        state: directory
+        owner: ossec
+        group: ossec
+        mode: '0750'
+
+    - name: Install custom SIGMA rules
+      copy:
+        src: "{{ item }}"
+        dest: /var/ossec/etc/rules/
+        owner: ossec
+        group: ossec
+        mode: '0640'
+      with_fileglob:
+        - "files/rules/*.xml"
+      notify: restart wazuh-manager
+
+    - name: Install custom decoders
+      copy:
+        src: "{{ item }}"
+        dest: /var/ossec/etc/decoders/
+        owner: ossec
+        group: ossec
+        mode: '0640'
+      with_fileglob:
+        - "files/decoders/*.xml"
+      notify: restart wazuh-manager
+
+    - name: Configure firewall for Wazuh Manager
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - "{{ wazuh_manager_port }}"
+        - "1515"
+        - "{{ wazuh_api_port }}"
+        - "{{ wazuh_cluster_port }}"
+
+    - name: Enable and start Wazuh Manager service
+      systemd:
+        name: wazuh-manager
+        enabled: yes
+        state: started
+        daemon_reload: yes
+
+    - name: Wait for Wazuh Manager to be ready
+      wait_for:
+        port: "{{ wazuh_api_port }}"
+        host: "{{ ansible_default_ipv4.address }}"
+        delay: 10
+        timeout: 300
+
+    - name: Create Wazuh API user
+      uri:
+        url: "https://{{ ansible_default_ipv4.address }}:{{ wazuh_api_port }}/security/users"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+          Authorization: "Bearer {{ wazuh_api_token | default('') }}"
+        body_format: json
+        body:
+          username: "{{ tenant_id | default('admin') }}"
+          password: "{{ wazuh_api_password | default('admin') }}"
+        validate_certs: no
+        status_code: [200, 201, 409]
+      when: tenant_id is defined
+
+    - name: Configure log rotation for Wazuh
+      copy:
+        content: |
+          /var/ossec/logs/ossec.log {
+              daily
+              rotate 30
+              compress
+              delaycompress
+              missingok
+              notifempty
+              create 640 ossec ossec
+              postrotate
+                  /bin/kill -HUP `cat /var/ossec/var/run/ossec-logd.pid 2> /dev/null` 2> /dev/null || true
+              endscript
+          }
+          /var/ossec/logs/alerts/alerts.log {
+              daily
+              rotate 30
+              compress
+              delaycompress
+              missingok
+              notifempty
+              create 640 ossec ossec
+          }
+        dest: /etc/logrotate.d/wazuh-manager
+        mode: '0644'
+
+    - name: Create Wazuh backup script
+      copy:
+        content: |
+          #!/bin/bash
+          # Wazuh Manager backup script
+          
+          BACKUP_DIR="/opt/wazuh-backups"
+          DATE=$(date +%Y%m%d_%H%M%S)
+          BACKUP_FILE="wazuh-manager-backup-${DATE}.tar.gz"
+          
+          mkdir -p ${BACKUP_DIR}
+          
+          # Stop Wazuh Manager
+          systemctl stop wazuh-manager
+          
+          # Create backup
+          tar -czf ${BACKUP_DIR}/${BACKUP_FILE} \
+              /var/ossec/etc/ \
+              /var/ossec/rules/ \
+              /var/ossec/decoders/ \
+              /var/ossec/queue/rids/ \
+              --exclude=/var/ossec/logs/
+          
+          # Start Wazuh Manager
+          systemctl start wazuh-manager
+          
+          # Remove old backups (keep last 7 days)
+          find ${BACKUP_DIR} -name "wazuh-manager-backup-*.tar.gz" -mtime +7 -delete
+          
+          echo "Backup completed: ${BACKUP_DIR}/${BACKUP_FILE}"
+        dest: /opt/wazuh-backup.sh
+        mode: '0755'
+
+    - name: Schedule Wazuh backup
+      cron:
+        name: "Wazuh Manager backup"
+        minute: "0"
+        hour: "2"
+        job: "/opt/wazuh-backup.sh"
+        user: root
+
+  handlers:
+    - name: restart wazuh-manager
+      systemd:
+        name: wazuh-manager
+        state: restarted
+        daemon_reload: yes
+

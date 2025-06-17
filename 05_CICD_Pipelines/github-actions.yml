@@ -1,0 +1,432 @@
+# GitHub Actions CI/CD Pipeline for SIEM Platform
+# This workflow handles build, test, and deployment of the SIEM platform
+
+name: SIEM Platform CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'terraform/**'
+      - 'ansible/**'
+      - 'powershell/**'
+      - 'docker/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run nightly builds
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      deployment_mode:
+        description: 'Deployment mode'
+        required: true
+        default: 'single-node'
+        type: choice
+        options:
+          - single-node
+          - multi-tenant
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+      tenant_count:
+        description: 'Number of tenants (multi-tenant only)'
+        required: false
+        default: '3'
+        type: string
+
+env:
+  TERRAFORM_VERSION: '1.6.0'
+  ANSIBLE_VERSION: '2.15.0'
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+
+jobs:
+  # Validation and Testing Jobs
+  validate-terraform:
+    name: Validate Terraform Configuration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive
+        working-directory: terraform/
+
+      - name: Terraform Init
+        run: terraform init -backend=false
+        working-directory: terraform/
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: terraform/
+
+      - name: Terraform Plan (Dry Run)
+        run: |
+          cp terraform.tfvars.example terraform.tfvars
+          terraform plan -var-file=terraform.tfvars
+        working-directory: terraform/
+        env:
+          TF_VAR_proxmox_password: ${{ secrets.PROXMOX_PASSWORD }}
+
+  validate-ansible:
+    name: Validate Ansible Playbooks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible==${{ env.ANSIBLE_VERSION }}
+          pip install ansible-lint yamllint
+
+      - name: Ansible Lint
+        run: |
+          ansible-lint ansible/playbooks/
+          yamllint ansible/
+
+      - name: Ansible Syntax Check
+        run: |
+          ansible-playbook --syntax-check ansible/playbooks/site.yml
+          ansible-playbook --syntax-check ansible/playbooks/wazuh-manager.yml
+          ansible-playbook --syntax-check ansible/playbooks/graylog.yml
+
+  test-powershell:
+    name: Test PowerShell Scripts
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Test PowerShell Syntax
+        run: |
+          Get-ChildItem -Path "powershell" -Filter "*.ps1" -Recurse | ForEach-Object {
+            Write-Host "Testing: $($_.FullName)"
+            $errors = $null
+            $null = [System.Management.Automation.PSParser]::Tokenize((Get-Content $_.FullName -Raw), [ref]$errors)
+            if ($errors) {
+              Write-Error "Syntax errors in $($_.FullName): $($errors | Out-String)"
+              exit 1
+            }
+          }
+
+      - name: Test PowerShell Module Import
+        run: |
+          Import-Module ".\powershell\common\SIEMDeployment.psm1" -Force
+          Get-Command -Module SIEMDeployment
+
+      - name: Run PowerShell Unit Tests
+        run: |
+          if (Test-Path ".\tests\powershell") {
+            Invoke-Pester -Path ".\tests\powershell" -OutputFormat NUnitXml -OutputFile "TestResults.xml"
+          }
+
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Scan for secrets
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: main
+          head: HEAD
+
+  # Build Jobs
+  build-docker-images:
+    name: Build Docker Images
+    runs-on: ubuntu-latest
+    needs: [validate-terraform, validate-ansible]
+    strategy:
+      matrix:
+        component: [wazuh-manager, graylog, grafana, thehive, opencti, misp]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/${{ matrix.component }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./docker/${{ matrix.component }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # Deployment Jobs
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [validate-terraform, validate-ansible, test-powershell, security-scan]
+    if: github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
+    environment: staging
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Setup Python and Ansible
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible==${{ env.ANSIBLE_VERSION }}
+
+      - name: Configure deployment variables
+        run: |
+          cat > terraform/terraform.tfvars << EOF
+          proxmox_api_url = "${{ secrets.STAGING_PROXMOX_API_URL }}"
+          proxmox_user = "${{ secrets.STAGING_PROXMOX_USER }}"
+          proxmox_password = "${{ secrets.STAGING_PROXMOX_PASSWORD }}"
+          proxmox_node = "${{ secrets.STAGING_PROXMOX_NODE }}"
+          deployment_mode = "${{ github.event.inputs.deployment_mode || 'single-node' }}"
+          environment = "staging"
+          ssh_public_key = "${{ secrets.SSH_PUBLIC_KEY }}"
+          tenant_count = ${{ github.event.inputs.tenant_count || 1 }}
+          EOF
+
+      - name: Deploy infrastructure
+        run: |
+          cd terraform
+          terraform init
+          terraform plan -var-file=terraform.tfvars
+          terraform apply -auto-approve -var-file=terraform.tfvars
+        env:
+          TF_VAR_proxmox_password: ${{ secrets.STAGING_PROXMOX_PASSWORD }}
+
+      - name: Configure services
+        run: |
+          cd ansible
+          ansible-playbook -i inventory/staging-hosts playbooks/site.yml \
+            --extra-vars "environment=staging"
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: False
+
+      - name: Run deployment tests
+        run: |
+          cd tests
+          python -m pytest deployment_tests.py --environment=staging
+
+      - name: Notify deployment status
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          channel: '#siem-deployments'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Setup Python and Ansible
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible==${{ env.ANSIBLE_VERSION }}
+
+      - name: Configure production deployment
+        run: |
+          cat > terraform/terraform.tfvars << EOF
+          proxmox_api_url = "${{ secrets.PROD_PROXMOX_API_URL }}"
+          proxmox_user = "${{ secrets.PROD_PROXMOX_USER }}"
+          proxmox_password = "${{ secrets.PROD_PROXMOX_PASSWORD }}"
+          proxmox_node = "${{ secrets.PROD_PROXMOX_NODE }}"
+          deployment_mode = "multi-tenant"
+          environment = "production"
+          ssh_public_key = "${{ secrets.SSH_PUBLIC_KEY }}"
+          tenant_count = 10
+          enable_ha = true
+          enable_backup = true
+          EOF
+
+      - name: Deploy production infrastructure
+        run: |
+          cd terraform
+          terraform init
+          terraform plan -var-file=terraform.tfvars
+          terraform apply -auto-approve -var-file=terraform.tfvars
+
+      - name: Configure production services
+        run: |
+          cd ansible
+          ansible-playbook -i inventory/production-hosts playbooks/site.yml \
+            --extra-vars "environment=production"
+
+      - name: Run production health checks
+        run: |
+          cd tests
+          python -m pytest health_checks.py --environment=production
+
+      - name: Create deployment tag
+        run: |
+          git tag "deployment-$(date +%Y%m%d-%H%M%S)"
+          git push origin --tags
+
+  # Maintenance Jobs
+  update-threat-intel:
+    name: Update Threat Intelligence
+    runs-on: ubuntu-latest
+    schedule:
+      - cron: '0 */6 * * *'  # Every 6 hours
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Update MISP feeds
+        run: |
+          ansible-playbook -i ansible/inventory/production-hosts \
+            ansible/playbooks/update-threat-intel.yml
+
+      - name: Update SIGMA rules
+        run: |
+          ansible-playbook -i ansible/inventory/production-hosts \
+            ansible/playbooks/update-sigma-rules.yml
+
+      - name: Restart detection engines
+        run: |
+          ansible-playbook -i ansible/inventory/production-hosts \
+            ansible/playbooks/restart-detection.yml
+
+  backup-platform:
+    name: Backup SIEM Platform
+    runs-on: ubuntu-latest
+    schedule:
+      - cron: '0 3 * * *'  # Daily at 3 AM
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run platform backup
+        run: |
+          ansible-playbook -i ansible/inventory/production-hosts \
+            ansible/playbooks/backup-platform.yml
+
+      - name: Upload backup to cloud storage
+        run: |
+          # Upload to S3, Azure Blob, or other cloud storage
+          aws s3 sync /backup/siem s3://siem-platform-backups/$(date +%Y%m%d)/
+
+  # Monitoring and Alerting
+  platform-health-check:
+    name: Platform Health Check
+    runs-on: ubuntu-latest
+    schedule:
+      - cron: '*/15 * * * *'  # Every 15 minutes
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run health checks
+        run: |
+          cd monitoring
+          python health_monitor.py --environment=production
+
+      - name: Send alerts if unhealthy
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: failure
+          channel: '#siem-alerts'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          text: 'SIEM Platform health check failed!'
+
+  # Cleanup Jobs
+  cleanup-old-deployments:
+    name: Cleanup Old Deployments
+    runs-on: ubuntu-latest
+    schedule:
+      - cron: '0 4 * * 0'  # Weekly on Sunday at 4 AM
+    steps:
+      - name: Cleanup old staging deployments
+        run: |
+          # Remove deployments older than 7 days
+          ansible-playbook -i ansible/inventory/staging-hosts \
+            ansible/playbooks/cleanup-old-deployments.yml \
+            --extra-vars "retention_days=7"
+
+      - name: Cleanup old container images
+        run: |
+          # Remove old container images
+          docker system prune -af --filter "until=168h"
+

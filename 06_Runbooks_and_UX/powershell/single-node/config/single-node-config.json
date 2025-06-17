@@ -1,0 +1,63 @@
+{
+  "proxmox": {
+    "api_url": "https://your-proxmox.local:8006/api2/json",
+    "username": "root@pam",
+    "password": "your-proxmox-password",
+    "node": "pve",
+    "storage_pool": "local-lvm",
+    "network_bridge": "vmbr0"
+  },
+  "deployment": {
+    "environment": "production",
+    "ssh_public_key": "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQ... your-public-key",
+    "ssh_private_key": "~/.ssh/siem_platform_key",
+    "timezone": "UTC"
+  },
+  "resources": {
+    "cores": 32,
+    "memory": 65536,
+    "disk": "1T"
+  },
+  "passwords": {
+    "wazuh_admin": "SecureWazuhPassword123!",
+    "graylog_admin": "SecureGraylogPassword123!",
+    "grafana_admin": "SecureGrafanaPassword123!",
+    "thehive_admin": "SecureTheHivePassword123!",
+    "opencti_admin": "SecureOpenCTIPassword123!",
+    "misp_admin": "SecureMISPPassword123!"
+  },
+  "features": {
+    "enable_ha": false,
+    "enable_backup": true,
+    "enable_monitoring": true,
+    "log_retention_days": 90
+  },
+  "integrations": {
+    "slack": {
+      "enabled": false,
+      "webhook_url": "",
+      "channel": "#security-alerts"
+    },
+    "email": {
+      "enabled": true,
+      "smtp_server": "smtp.company.com",
+      "smtp_port": 587,
+      "username": "siem@company.com",
+      "password": "smtp-password",
+      "from_address": "siem@company.com",
+      "to_addresses": ["admin@company.com"]
+    }
+  },
+  "security": {
+    "firewall_enabled": true,
+    "allowed_networks": [
+      "10.0.0.0/8",
+      "172.16.0.0/12",
+      "192.168.0.0/16"
+    ],
+    "ssl_enabled": true,
+    "certificate_path": "/etc/ssl/certs/siem.crt",
+    "private_key_path": "/etc/ssl/private/siem.key"
+  }
+}
+

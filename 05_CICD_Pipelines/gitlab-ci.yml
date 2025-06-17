@@ -1,0 +1,259 @@
+# GitLab CI/CD Pipeline for SIEM Platform
+# Alternative CI/CD pipeline for GitLab environments
+
+stages:
+  - validate
+  - build
+  - test
+  - deploy-staging
+  - deploy-production
+  - maintenance
+
+variables:
+  TERRAFORM_VERSION: "1.6.0"
+  ANSIBLE_VERSION: "2.15.0"
+  PYTHON_VERSION: "3.11"
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+
+# Validation Stage
+terraform-validate:
+  stage: validate
+  image: hashicorp/terraform:$TERRAFORM_VERSION
+  script:
+    - cd terraform/
+    - terraform fmt -check -recursive
+    - terraform init -backend=false
+    - terraform validate
+    - cp terraform.tfvars.example terraform.tfvars
+    - terraform plan -var-file=terraform.tfvars
+  only:
+    - merge_requests
+    - main
+    - develop
+
+ansible-validate:
+  stage: validate
+  image: python:$PYTHON_VERSION
+  before_script:
+    - pip install ansible==$ANSIBLE_VERSION ansible-lint yamllint
+  script:
+    - ansible-lint ansible/playbooks/
+    - yamllint ansible/
+    - ansible-playbook --syntax-check ansible/playbooks/site.yml
+    - ansible-playbook --syntax-check ansible/playbooks/wazuh-manager.yml
+  only:
+    - merge_requests
+    - main
+    - develop
+
+powershell-validate:
+  stage: validate
+  image: mcr.microsoft.com/powershell:latest
+  script:
+    - |
+      Get-ChildItem -Path "powershell" -Filter "*.ps1" -Recurse | ForEach-Object {
+        Write-Host "Testing: $($_.FullName)"
+        $errors = $null
+        $null = [System.Management.Automation.PSParser]::Tokenize((Get-Content $_.FullName -Raw), [ref]$errors)
+        if ($errors) {
+          Write-Error "Syntax errors in $($_.FullName): $($errors | Out-String)"
+          exit 1
+        }
+      }
+    - Import-Module "./powershell/common/SIEMDeployment.psm1" -Force
+  only:
+    - merge_requests
+    - main
+    - develop
+
+security-scan:
+  stage: validate
+  image: aquasec/trivy:latest
+  script:
+    - trivy fs --format sarif --output trivy-results.sarif .
+    - trivy fs --severity HIGH,CRITICAL .
+  artifacts:
+    reports:
+      sast: trivy-results.sarif
+  only:
+    - merge_requests
+    - main
+    - develop
+
+# Build Stage
+build-docker-images:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  parallel:
+    matrix:
+      - COMPONENT: [wazuh-manager, graylog, grafana, thehive, opencti, misp]
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - |
+      if [ -d "docker/$COMPONENT" ]; then
+        cd docker/$COMPONENT
+        docker build -t $CI_REGISTRY_IMAGE/$COMPONENT:$CI_COMMIT_SHA .
+        docker build -t $CI_REGISTRY_IMAGE/$COMPONENT:latest .
+        docker push $CI_REGISTRY_IMAGE/$COMPONENT:$CI_COMMIT_SHA
+        docker push $CI_REGISTRY_IMAGE/$COMPONENT:latest
+      fi
+  only:
+    - main
+    - develop
+
+# Test Stage
+integration-tests:
+  stage: test
+  image: python:$PYTHON_VERSION
+  services:
+    - docker:dind
+  before_script:
+    - pip install pytest requests docker-compose
+  script:
+    - cd tests/
+    - python -m pytest integration_tests.py -v
+  only:
+    - merge_requests
+    - main
+    - develop
+
+performance-tests:
+  stage: test
+  image: python:$PYTHON_VERSION
+  script:
+    - cd tests/
+    - python -m pytest performance_tests.py -v
+  artifacts:
+    reports:
+      junit: tests/performance-results.xml
+  only:
+    - main
+    - develop
+
+# Staging Deployment
+deploy-staging:
+  stage: deploy-staging
+  image: python:$PYTHON_VERSION
+  before_script:
+    - apt-get update && apt-get install -y wget unzip
+    - wget https://releases.hashicorp.com/terraform/$TERRAFORM_VERSION/terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+    - unzip terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+    - mv terraform /usr/local/bin/
+    - pip install ansible==$ANSIBLE_VERSION
+  script:
+    - |
+      cat > terraform/terraform.tfvars << EOF
+      proxmox_api_url = "$STAGING_PROXMOX_API_URL"
+      proxmox_user = "$STAGING_PROXMOX_USER"
+      proxmox_password = "$STAGING_PROXMOX_PASSWORD"
+      proxmox_node = "$STAGING_PROXMOX_NODE"
+      deployment_mode = "single-node"
+      environment = "staging"
+      ssh_public_key = "$SSH_PUBLIC_KEY"
+      EOF
+    - cd terraform/
+    - terraform init
+    - terraform plan -var-file=terraform.tfvars
+    - terraform apply -auto-approve -var-file=terraform.tfvars
+    - cd ../ansible/
+    - ansible-playbook -i inventory/staging-hosts playbooks/site.yml --extra-vars "environment=staging"
+  environment:
+    name: staging
+    url: https://staging.siem-platform.local
+  only:
+    - develop
+  when: manual
+
+# Production Deployment
+deploy-production:
+  stage: deploy-production
+  image: python:$PYTHON_VERSION
+  before_script:
+    - apt-get update && apt-get install -y wget unzip
+    - wget https://releases.hashicorp.com/terraform/$TERRAFORM_VERSION/terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+    - unzip terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+    - mv terraform /usr/local/bin/
+    - pip install ansible==$ANSIBLE_VERSION
+  script:
+    - |
+      cat > terraform/terraform.tfvars << EOF
+      proxmox_api_url = "$PROD_PROXMOX_API_URL"
+      proxmox_user = "$PROD_PROXMOX_USER"
+      proxmox_password = "$PROD_PROXMOX_PASSWORD"
+      proxmox_node = "$PROD_PROXMOX_NODE"
+      deployment_mode = "multi-tenant"
+      environment = "production"
+      ssh_public_key = "$SSH_PUBLIC_KEY"
+      tenant_count = 10
+      enable_ha = true
+      enable_backup = true
+      EOF
+    - cd terraform/
+    - terraform init
+    - terraform plan -var-file=terraform.tfvars
+    - terraform apply -auto-approve -var-file=terraform.tfvars
+    - cd ../ansible/
+    - ansible-playbook -i inventory/production-hosts playbooks/site.yml --extra-vars "environment=production"
+    - cd ../tests/
+    - python -m pytest health_checks.py --environment=production
+  environment:
+    name: production
+    url: https://siem-platform.local
+  only:
+    - main
+  when: manual
+
+# Maintenance Jobs
+update-threat-intel:
+  stage: maintenance
+  image: python:$PYTHON_VERSION
+  before_script:
+    - pip install ansible==$ANSIBLE_VERSION
+  script:
+    - ansible-playbook -i ansible/inventory/production-hosts ansible/playbooks/update-threat-intel.yml
+    - ansible-playbook -i ansible/inventory/production-hosts ansible/playbooks/update-sigma-rules.yml
+  schedule:
+    - cron: "0 */6 * * *"
+  only:
+    - schedules
+
+backup-platform:
+  stage: maintenance
+  image: python:$PYTHON_VERSION
+  before_script:
+    - pip install ansible==$ANSIBLE_VERSION
+  script:
+    - ansible-playbook -i ansible/inventory/production-hosts ansible/playbooks/backup-platform.yml
+  schedule:
+    - cron: "0 3 * * *"
+  only:
+    - schedules
+
+health-monitoring:
+  stage: maintenance
+  image: python:$PYTHON_VERSION
+  script:
+    - cd monitoring/
+    - python health_monitor.py --environment=production
+  schedule:
+    - cron: "*/15 * * * *"
+  only:
+    - schedules
+
+# Cleanup Jobs
+cleanup-old-deployments:
+  stage: maintenance
+  image: python:$PYTHON_VERSION
+  before_script:
+    - pip install ansible==$ANSIBLE_VERSION
+  script:
+    - ansible-playbook -i ansible/inventory/staging-hosts ansible/playbooks/cleanup-old-deployments.yml --extra-vars "retention_days=7"
+  schedule:
+    - cron: "0 4 * * 0"
+  only:
+    - schedules
+

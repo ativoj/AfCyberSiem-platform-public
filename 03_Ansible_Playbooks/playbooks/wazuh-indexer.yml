@@ -1,0 +1,296 @@
+---
+# Ansible Playbook for Wazuh Indexer (OpenSearch) Installation and Configuration
+
+- name: Install and Configure Wazuh Indexer
+  hosts: wazuh_indexers
+  become: yes
+  vars:
+    wazuh_indexer_version: "4.8.0"
+    wazuh_indexer_port: 9200
+    wazuh_indexer_cluster_port: 9300
+    wazuh_indexer_cluster_name: "wazuh-indexer-cluster"
+    wazuh_indexer_node_name: "{{ inventory_hostname }}"
+    wazuh_indexer_network_host: "{{ ansible_default_ipv4.address }}"
+    wazuh_indexer_discovery_hosts:
+      - "{{ ansible_default_ipv4.address }}"
+    wazuh_indexer_initial_master_nodes:
+      - "{{ wazuh_indexer_node_name }}"
+    wazuh_indexer_heap_size: "{{ (ansible_memtotal_mb * 0.5) | int }}m"
+    wazuh_indexer_data_path: "/var/lib/wazuh-indexer"
+    wazuh_indexer_logs_path: "/var/log/wazuh-indexer"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - curl
+          - apt-transport-https
+          - lsb-release
+          - gnupg
+          - software-properties-common
+          - openjdk-11-jdk
+        state: present
+
+    - name: Set JAVA_HOME environment variable
+      lineinfile:
+        path: /etc/environment
+        line: 'JAVA_HOME="/usr/lib/jvm/java-11-openjdk-amd64"'
+        create: yes
+
+    - name: Add Wazuh GPG key
+      apt_key:
+        url: https://packages.wazuh.com/key/GPG-KEY-WAZUH
+        state: present
+
+    - name: Add Wazuh repository
+      apt_repository:
+        repo: "deb https://packages.wazuh.com/4.x/apt/ stable main"
+        state: present
+        filename: wazuh
+
+    - name: Update apt cache after adding repository
+      apt:
+        update_cache: yes
+
+    - name: Install Wazuh Indexer
+      apt:
+        name: wazuh-indexer={{ wazuh_indexer_version }}-*
+        state: present
+        allow_downgrade: yes
+
+    - name: Create Wazuh Indexer data directory
+      file:
+        path: "{{ wazuh_indexer_data_path }}"
+        state: directory
+        owner: wazuh-indexer
+        group: wazuh-indexer
+        mode: '0755'
+
+    - name: Create Wazuh Indexer logs directory
+      file:
+        path: "{{ wazuh_indexer_logs_path }}"
+        state: directory
+        owner: wazuh-indexer
+        group: wazuh-indexer
+        mode: '0755'
+
+    - name: Configure Wazuh Indexer
+      template:
+        src: opensearch.yml.j2
+        dest: /etc/wazuh-indexer/opensearch.yml
+        owner: wazuh-indexer
+        group: wazuh-indexer
+        mode: '0644'
+        backup: yes
+      notify: restart wazuh-indexer
+
+    - name: Configure Wazuh Indexer JVM options
+      template:
+        src: jvm.options.j2
+        dest: /etc/wazuh-indexer/jvm.options
+        owner: wazuh-indexer
+        group: wazuh-indexer
+        mode: '0644'
+        backup: yes
+      notify: restart wazuh-indexer
+
+    - name: Set system limits for Wazuh Indexer
+      copy:
+        content: |
+          wazuh-indexer soft memlock unlimited
+          wazuh-indexer hard memlock unlimited
+          wazuh-indexer soft nofile 65535
+          wazuh-indexer hard nofile 65535
+          wazuh-indexer soft nproc 4096
+          wazuh-indexer hard nproc 4096
+        dest: /etc/security/limits.d/99-wazuh-indexer.conf
+        mode: '0644'
+
+    - name: Configure system settings for Wazuh Indexer
+      sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+        reload: yes
+      loop:
+        - { name: "vm.max_map_count", value: "262144" }
+        - { name: "vm.swappiness", value: "1" }
+        - { name: "net.core.somaxconn", value: "65535" }
+
+    - name: Configure firewall for Wazuh Indexer
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - "{{ wazuh_indexer_port }}"
+        - "{{ wazuh_indexer_cluster_port }}"
+
+    - name: Enable and start Wazuh Indexer service
+      systemd:
+        name: wazuh-indexer
+        enabled: yes
+        state: started
+        daemon_reload: yes
+
+    - name: Wait for Wazuh Indexer to be ready
+      wait_for:
+        port: "{{ wazuh_indexer_port }}"
+        host: "{{ ansible_default_ipv4.address }}"
+        delay: 30
+        timeout: 300
+
+    - name: Check Wazuh Indexer cluster health
+      uri:
+        url: "https://{{ ansible_default_ipv4.address }}:{{ wazuh_indexer_port }}/_cluster/health"
+        method: GET
+        validate_certs: no
+        user: admin
+        password: admin
+        force_basic_auth: yes
+      register: cluster_health
+      retries: 5
+      delay: 10
+
+    - name: Display cluster health
+      debug:
+        var: cluster_health.json
+
+    - name: Create index templates for Wazuh
+      uri:
+        url: "https://{{ ansible_default_ipv4.address }}:{{ wazuh_indexer_port }}/_index_template/wazuh-alerts"
+        method: PUT
+        headers:
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          index_patterns:
+            - "wazuh-alerts-*"
+          template:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+              refresh_interval: "5s"
+            mappings:
+              properties:
+                "@timestamp":
+                  type: "date"
+                agent:
+                  properties:
+                    id:
+                      type: "keyword"
+                    name:
+                      type: "keyword"
+                    ip:
+                      type: "ip"
+                rule:
+                  properties:
+                    id:
+                      type: "keyword"
+                    level:
+                      type: "integer"
+                    description:
+                      type: "text"
+                location:
+                  type: "keyword"
+                full_log:
+                  type: "text"
+        validate_certs: no
+        user: admin
+        password: admin
+        force_basic_auth: yes
+        status_code: [200, 201]
+
+    - name: Configure log rotation for Wazuh Indexer
+      copy:
+        content: |
+          {{ wazuh_indexer_logs_path }}/*.log {
+              daily
+              rotate 30
+              compress
+              delaycompress
+              missingok
+              notifempty
+              create 644 wazuh-indexer wazuh-indexer
+              postrotate
+                  systemctl reload wazuh-indexer
+              endscript
+          }
+        dest: /etc/logrotate.d/wazuh-indexer
+        mode: '0644'
+
+    - name: Create Wazuh Indexer backup script
+      copy:
+        content: |
+          #!/bin/bash
+          # Wazuh Indexer backup script
+          
+          BACKUP_DIR="/opt/wazuh-indexer-backups"
+          DATE=$(date +%Y%m%d_%H%M%S)
+          BACKUP_NAME="wazuh-indexer-backup-${DATE}"
+          
+          mkdir -p ${BACKUP_DIR}
+          
+          # Create snapshot repository if it doesn't exist
+          curl -X PUT "{{ ansible_default_ipv4.address }}:{{ wazuh_indexer_port }}/_snapshot/backup_repository" \
+               -H 'Content-Type: application/json' \
+               -d '{"type": "fs", "settings": {"location": "'${BACKUP_DIR}'"}}' \
+               -u admin:admin -k
+          
+          # Create snapshot
+          curl -X PUT "{{ ansible_default_ipv4.address }}:{{ wazuh_indexer_port }}/_snapshot/backup_repository/${BACKUP_NAME}" \
+               -H 'Content-Type: application/json' \
+               -d '{"indices": "wazuh-*", "ignore_unavailable": true, "include_global_state": false}' \
+               -u admin:admin -k
+          
+          # Remove old snapshots (keep last 7 days)
+          find ${BACKUP_DIR} -name "wazuh-indexer-backup-*" -mtime +7 -exec rm -rf {} \;
+          
+          echo "Backup completed: ${BACKUP_NAME}"
+        dest: /opt/wazuh-indexer-backup.sh
+        mode: '0755'
+
+    - name: Schedule Wazuh Indexer backup
+      cron:
+        name: "Wazuh Indexer backup"
+        minute: "30"
+        hour: "2"
+        job: "/opt/wazuh-indexer-backup.sh"
+        user: root
+
+    - name: Create Wazuh Indexer monitoring script
+      copy:
+        content: |
+          #!/bin/bash
+          # Wazuh Indexer monitoring script
+          
+          INDEXER_URL="https://{{ ansible_default_ipv4.address }}:{{ wazuh_indexer_port }}"
+          
+          # Check cluster health
+          HEALTH=$(curl -s -u admin:admin -k "${INDEXER_URL}/_cluster/health" | jq -r '.status')
+          
+          if [ "$HEALTH" != "green" ] && [ "$HEALTH" != "yellow" ]; then
+              echo "CRITICAL: Wazuh Indexer cluster health is $HEALTH"
+              exit 2
+          elif [ "$HEALTH" = "yellow" ]; then
+              echo "WARNING: Wazuh Indexer cluster health is $HEALTH"
+              exit 1
+          else
+              echo "OK: Wazuh Indexer cluster health is $HEALTH"
+              exit 0
+          fi
+        dest: /opt/check-wazuh-indexer.sh
+        mode: '0755'
+
+  handlers:
+    - name: restart wazuh-indexer
+      systemd:
+        name: wazuh-indexer
+        state: restarted
+        daemon_reload: yes
+

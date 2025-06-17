@@ -1,0 +1,229 @@
+# SIEM Platform Helm Chart Values
+
+global:
+  storageClass: "fast-ssd"
+  namespace: "siem-platform"
+
+# Wazuh Configuration
+wazuh:
+  enabled: true
+  manager:
+    replicas: 1
+    resources:
+      requests:
+        cpu: "2"
+        memory: "4Gi"
+      limits:
+        cpu: "4"
+        memory: "8Gi"
+  
+  indexer:
+    replicas: 3
+    resources:
+      requests:
+        cpu: "2"
+        memory: "4Gi"
+      limits:
+        cpu: "4"
+        memory: "8Gi"
+    persistence:
+      size: "100Gi"
+  
+  dashboard:
+    replicas: 1
+    resources:
+      requests:
+        cpu: "1"
+        memory: "2Gi"
+      limits:
+        cpu: "2"
+        memory: "4Gi"
+
+# Graylog Configuration
+graylog:
+  enabled: true
+  graylog:
+    replicas: 2
+    resources:
+      requests:
+        cpu: "2"
+        memory: "4Gi"
+      limits:
+        cpu: "4"
+        memory: "8Gi"
+    persistence:
+      size: "50Gi"
+  
+  mongodb:
+    enabled: true
+    persistence:
+      size: "20Gi"
+  
+  elasticsearch:
+    enabled: true
+    replicas: 3
+    persistence:
+      size: "100Gi"
+
+# Grafana Configuration
+grafana:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+  
+  persistence:
+    enabled: true
+    size: "10Gi"
+  
+  adminPassword: "admin"
+  
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+      - name: 'default'
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards
+
+# TheHive Configuration
+thehive:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: "1"
+      memory: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+  
+  persistence:
+    size: "20Gi"
+  
+  cassandra:
+    enabled: true
+    persistence:
+      size: "50Gi"
+
+# Cortex Configuration
+cortex:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: "1"
+      memory: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+
+# OpenCTI Configuration
+opencti:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: "1"
+      memory: "2Gi"
+    limits:
+      cpu: "2"
+      memory: "4Gi"
+  
+  redis:
+    enabled: true
+    persistence:
+      size: "10Gi"
+  
+  elasticsearch:
+    enabled: true
+    persistence:
+      size: "50Gi"
+  
+  minio:
+    enabled: true
+    persistence:
+      size: "20Gi"
+
+# Redis Configuration
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+  master:
+    persistence:
+      enabled: true
+      size: "10Gi"
+
+# Elasticsearch Configuration
+elasticsearch:
+  enabled: true
+  replicas: 3
+  minimumMasterNodes: 2
+  
+  resources:
+    requests:
+      cpu: "2"
+      memory: "4Gi"
+    limits:
+      cpu: "4"
+      memory: "8Gi"
+  
+  volumeClaimTemplate:
+    accessModes: ["ReadWriteOnce"]
+    resources:
+      requests:
+        storage: "100Gi"
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  
+  hosts:
+    - host: siem.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+          service: grafana
+        - path: /graylog
+          pathType: Prefix
+          service: graylog
+        - path: /thehive
+          pathType: Prefix
+          service: thehive
+        - path: /wazuh
+          pathType: Prefix
+          service: wazuh-dashboard
+  
+  tls:
+    - secretName: siem-tls
+      hosts:
+        - siem.example.com
+
+# Network Policies
+networkPolicy:
+  enabled: true
+  
+# Service Monitor for Prometheus
+serviceMonitor:
+  enabled: true
+  
+# Pod Security Policy
+podSecurityPolicy:
+  enabled: true
+

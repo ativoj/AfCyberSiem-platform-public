@@ -1,0 +1,1678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIEM Platform Implementation Guide</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <i class="fas fa-shield-alt"></i>
+                <span>SIEM Platform</span>
+            </div>
+            <ul class="nav-menu">
+                <li><a href="#overview">Overview</a></li>
+                <li><a href="#architecture">Architecture</a></li>
+                <li><a href="#deployment">Deployment</a></li>
+                <li><a href="#configuration">Configuration</a></li>
+                <li><a href="#advanced">Advanced</a></li>
+                <li><a href="#support">Support</a></li>
+            </ul>
+            <div class="hamburger">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <div class="hero-content">
+            <h1>World's Best Open-Source SIEM Platform</h1>
+            <p>Complete implementation guide for enterprise-grade security monitoring using Wazuh, Graylog, TheHive, and more on Proxmox SDDC</p>
+            <div class="hero-buttons">
+                <a href="#deployment" class="btn btn-primary">
+                    <i class="fas fa-rocket"></i> Start Deployment
+                </a>
+                <a href="#architecture" class="btn btn-secondary">
+                    <i class="fas fa-sitemap"></i> View Architecture
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <section id="overview" class="section">
+            <div class="container">
+                <h2><i class="fas fa-info-circle"></i> Platform Overview</h2>
+                <div class="overview-grid">
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-server"></i>
+                        </div>
+                        <h3>Single-Node Deployment</h3>
+                        <p>Complete SIEM stack on a single VM for SMEs, labs, and proof-of-concept implementations.</p>
+                        <ul>
+                            <li>32 vCPU, 64GB RAM, 1TB SSD</li>
+                            <li>10,000 events/second capacity</li>
+                            <li>Up to 1,000 monitored endpoints</li>
+                            <li>All services on one infrastructure</li>
+                        </ul>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-cloud"></i>
+                        </div>
+                        <h3>Multi-Tenant SaaS</h3>
+                        <p>Enterprise-grade distributed architecture with complete tenant isolation and shared infrastructure.</p>
+                        <ul>
+                            <li>128+ vCPU cluster, 256+ GB RAM</li>
+                            <li>100,000+ events/second per tenant</li>
+                            <li>Unlimited tenant scaling</li>
+                            <li>Complete network and data isolation</li>
+                        </ul>
+                    </div>
+                    <div class="overview-card">
+                        <div class="card-icon">
+                            <i class="fas fa-cogs"></i>
+                        </div>
+                        <h3>Technology Stack</h3>
+                        <p>Proven open-source security tools integrated into a comprehensive platform.</p>
+                        <ul>
+                            <li>Wazuh for endpoint detection</li>
+                            <li>Graylog for log management</li>
+                            <li>TheHive for case management</li>
+                            <li>OpenCTI + MISP for threat intelligence</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="architecture" class="section bg-light">
+            <div class="container">
+                <h2><i class="fas fa-sitemap"></i> Architecture Diagrams</h2>
+                
+                <div class="architecture-section">
+                    <h3>Single-Node Architecture</h3>
+                    <div class="architecture-content">
+                        <div class="architecture-image">
+                            <img src="images/single_node_siem_architecture.png" alt="Single-Node SIEM Architecture" class="responsive-img">
+                        </div>
+                        <div class="architecture-description">
+                            <h4>Components Overview</h4>
+                            <div class="component-list">
+                                <div class="component-tier">
+                                    <h5><i class="fas fa-desktop"></i> Web Interfaces</h5>
+                                    <ul>
+                                        <li><strong>Grafana Dashboard</strong> (Port 3000) - Visualization and KPIs</li>
+                                        <li><strong>Graylog Web UI</strong> (Port 9000) - Log search and analysis</li>
+                                        <li><strong>TheHive Case Management</strong> (Port 9001) - Incident response</li>
+                                        <li><strong>Wazuh Dashboard</strong> (Port 443) - Agent management</li>
+                                    </ul>
+                                </div>
+                                <div class="component-tier">
+                                    <h5><i class="fas fa-microchip"></i> Core Services</h5>
+                                    <ul>
+                                        <li><strong>Wazuh Manager + Agents</strong> - Real-time monitoring</li>
+                                        <li><strong>Graylog Server + Pipelines</strong> - Log processing</li>
+                                        <li><strong>TheHive + Cortex</strong> - Case and response automation</li>
+                                        <li><strong>OpenCTI + MISP</strong> - Threat intelligence</li>
+                                    </ul>
+                                </div>
+                                <div class="component-tier">
+                                    <h5><i class="fas fa-database"></i> Data Storage</h5>
+                                    <ul>
+                                        <li><strong>Elasticsearch Cluster</strong> - Search and analytics</li>
+                                        <li><strong>Redis Cache</strong> - Session and performance</li>
+                                        <li><strong>Cassandra Database</strong> - Case data persistence</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="architecture-section">
+                    <h3>Multi-Tenant SaaS Architecture</h3>
+                    <div class="architecture-content">
+                        <div class="architecture-image">
+                            <img src="images/multi_tenant_siem_architecture.png" alt="Multi-Tenant SaaS SIEM Architecture" class="responsive-img">
+                        </div>
+                        <div class="architecture-description">
+                            <h4>Enterprise Features</h4>
+                            <div class="component-list">
+                                <div class="component-tier">
+                                    <h5><i class="fas fa-balance-scale"></i> Load Balancing & Control</h5>
+                                    <ul>
+                                        <li><strong>Load Balancer & API Gateway</strong> - Intelligent tenant routing</li>
+                                        <li><strong>Management Console</strong> - Centralized administration</li>
+                                        <li><strong>Tenant Provisioning</strong> - Automated onboarding</li>
+                                        <li><strong>Billing System</strong> - Usage tracking and invoicing</li>
+                                    </ul>
+                                </div>
+                                <div class="component-tier">
+                                    <h5><i class="fas fa-lock"></i> Tenant Isolation</h5>
+                                    <ul>
+                                        <li><strong>VLAN Separation</strong> - Network-level isolation</li>
+                                        <li><strong>Dedicated Resources</strong> - CPU, memory, storage per tenant</li>
+                                        <li><strong>Isolated Databases</strong> - Separate data storage</li>
+                                        <li><strong>Access Controls</strong> - Role-based tenant boundaries</li>
+                                    </ul>
+                                </div>
+                                <div class="component-tier">
+                                    <h5><i class="fas fa-share-alt"></i> Shared Infrastructure</h5>
+                                    <ul>
+                                        <li><strong>Proxmox Cluster</strong> - High-availability virtualization</li>
+                                        <li><strong>Ceph Storage</strong> - Distributed, fault-tolerant storage</li>
+                                        <li><strong>SDN Networking</strong> - Software-defined networking</li>
+                                        <li><strong>Shared Services</strong> - Threat intel, ML analytics, backups</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="deployment" class="section">
+            <div class="container">
+                <h2><i class="fas fa-rocket"></i> Deployment Instructions</h2>
+                
+                <div class="deployment-tabs">
+                    <div class="tab-buttons">
+                        <button class="tab-button active" data-tab="terraform">
+                            <i class="fas fa-code"></i> Terraform + Ansible
+                        </button>
+                        <button class="tab-button" data-tab="docker">
+                            <i class="fab fa-docker"></i> Docker Compose
+                        </button>
+                        <button class="tab-button" data-tab="powershell">
+                            <i class="fas fa-terminal"></i> PowerShell
+                        </button>
+                        <button class="tab-button" data-tab="helm">
+                            <i class="fas fa-dharmachakra"></i> Helm Charts
+                        </button>
+                    </div>
+
+                    <div class="tab-content">
+                        <div id="terraform" class="tab-pane active">
+                            <h3><i class="fas fa-code"></i> Terraform + Ansible Deployment</h3>
+                            <p class="deployment-description">
+                                The recommended approach using Infrastructure-as-Code for Proxmox SDDC deployment with automated configuration management.
+                            </p>
+                            
+                            <div class="step-section">
+                                <h4>Step 1: Prerequisites</h4>
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <span>Install Required Tools</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <pre><code class="language-bash"># Install Terraform
+curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+sudo apt-get update && sudo apt-get install terraform
+
+# Install Ansible
+sudo apt update
+sudo apt install ansible
+
+# Install Proxmox Terraform Provider
+terraform init</code></pre>
+                                </div>
+                            </div>
+
+                            <div class="step-section">
+                                <h4>Step 2: Configure Terraform Variables</h4>
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <span>terraform.tfvars</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <pre><code class="language-hcl"># Proxmox Configuration
+proxmox_api_url = "https://your-proxmox-host:8006/api2/json"
+proxmox_api_token_id = "your-token-id"
+proxmox_api_token_secret = "your-token-secret"
+proxmox_node = "your-proxmox-node"
+
+# Single-Node Configuration
+single_node_enabled = true
+single_node_vm_id = 100
+single_node_name = "siem-single-node"
+single_node_cores = 32
+single_node_memory = 65536
+single_node_disk_size = "1000G"
+
+# Multi-Tenant Configuration
+multi_tenant_enabled = false
+tenant_count = 3
+tenant_vm_cores = 16
+tenant_vm_memory = 32768
+tenant_vm_disk_size = "500G"
+
+# Network Configuration
+network_bridge = "vmbr0"
+network_vlan_start = 100</code></pre>
+                                </div>
+                            </div>
+
+                            <div class="step-section">
+                                <h4>Step 3: Deploy Infrastructure</h4>
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <span>Infrastructure Deployment</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <pre><code class="language-bash"># Navigate to Terraform directory
+cd 02_IaC_Terraform_Proxmox/
+
+# Initialize Terraform
+terraform init
+
+# Plan deployment
+terraform plan -var-file="terraform.tfvars"
+
+# Apply infrastructure
+terraform apply -var-file="terraform.tfvars"
+
+# Note the output IP addresses for Ansible inventory</code></pre>
+                                </div>
+                            </div>
+
+                            <div class="step-section">
+                                <h4>Step 4: Configure Services with Ansible</h4>
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <span>Ansible Configuration</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <pre><code class="language-bash"># Navigate to Ansible directory
+cd ../03_Ansible_Playbooks/
+
+# Update inventory with VM IP addresses
+nano inventory/hosts.yml
+
+# Run complete SIEM installation
+ansible-playbook -i inventory/hosts.yml playbooks/site.yml
+
+# Or run individual components
+ansible-playbook -i inventory/hosts.yml playbooks/wazuh-manager.yml
+ansible-playbook -i inventory/hosts.yml playbooks/graylog.yml
+ansible-playbook -i inventory/hosts.yml playbooks/thehive.yml</code></pre>
+                                </div>
+                            </div>
+
+                            <div class="step-section">
+                                <h4>Step 5: Verify Deployment</h4>
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <span>Access Verification</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <pre><code class="language-bash"># Check service status
+ansible all -i inventory/hosts.yml -m shell -a "systemctl status wazuh-manager"
+ansible all -i inventory/hosts.yml -m shell -a "systemctl status graylog-server"
+
+# Access web interfaces
+echo "Grafana: https://your-vm-ip:3000 (admin/admin)"
+echo "Graylog: http://your-vm-ip:9000 (admin/admin)"
+echo "TheHive: http://your-vm-ip:9001"
+echo "Wazuh: https://your-vm-ip:443"</code></pre>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="docker" class="tab-pane">
+                            <h3><i class="fab fa-docker"></i> Docker Compose Deployment</h3>
+                            <p class="deployment-description">
+                                Quick containerized deployment for development, testing, or small-scale production environments.
+                            </p>
+
+                            <div class="step-section">
+                                <h4>Step 1: Prerequisites</h4>
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <span>Install Docker and Docker Compose</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <pre><code class="language-bash"># Install Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+
+# Install Docker Compose
+sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+sudo chmod +x /usr/local/bin/docker-compose
+
+# Verify installation
+docker --version
+docker-compose --version</code></pre>
+                                </div>
+                            </div>
+
+                            <div class="step-section">
+                                <h4>Step 2: Configure Environment</h4>
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <span>.env Configuration</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <pre><code class="language-bash"># Create environment file
+cd 04_Docker_Helm_Packaging/
+cat > .env << EOF
+# Wazuh Configuration
+WAZUH_API_USERNAME=wazuh-wui
+WAZUH_API_PASSWORD=MyS3cr37P450r.*-
+INDEXER_USERNAME=admin
+INDEXER_PASSWORD=SecretPassword
+
+# Graylog Configuration
+GRAYLOG_PASSWORD_SECRET=somepasswordpepper
+GRAYLOG_ROOT_PASSWORD_SHA2=8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+
+# OpenCTI Configuration
+OPENCTI_ADMIN_EMAIL=admin@opencti.io
+OPENCTI_ADMIN_PASSWORD=ChangeMe
+OPENCTI_ADMIN_TOKEN=ChangeMe
+
+# Cortex Configuration
+CORTEX_KEY=your-cortex-api-key
+JOB_DIRECTORY=/tmp/cortex-jobs
+EOF</code></pre>
+                                </div>
+                            </div>
+
+                            <div class="step-section">
+                                <h4>Step 3: Deploy SIEM Stack</h4>
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <span>Docker Compose Deployment</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <pre><code class="language-bash"># Deploy complete SIEM stack
+docker-compose up -d
+
+# Check deployment status
+docker-compose ps
+
+# View logs
+docker-compose logs -f wazuh-manager
+docker-compose logs -f graylog
+docker-compose logs -f thehive
+
+# Scale specific services (if needed)
+docker-compose up -d --scale wazuh-indexer=3</code></pre>
+                                </div>
+                            </div>
+
+                            <div class="step-section">
+                                <h4>Step 4: Access Services</h4>
+                                <div class="service-grid">
+                                    <div class="service-card">
+                                        <h5><i class="fas fa-chart-line"></i> Grafana</h5>
+                                        <p><strong>URL:</strong> http://localhost:3000</p>
+                                        <p><strong>Credentials:</strong> admin/admin</p>
+                                    </div>
+                                    <div class="service-card">
+                                        <h5><i class="fas fa-search"></i> Graylog</h5>
+                                        <p><strong>URL:</strong> http://localhost:9000</p>
+                                        <p><strong>Credentials:</strong> admin/admin</p>
+                                    </div>
+                                    <div class="service-card">
+                                        <h5><i class="fas fa-tasks"></i> TheHive</h5>
+                                        <p><strong>URL:</strong> http://localhost:9001</p>
+                                        <p><strong>Setup:</strong> First-time configuration required</p>
+                                    </div>
+                                    <div class="service-card">
+                                        <h5><i class="fas fa-shield-alt"></i> Wazuh</h5>
+                                        <p><strong>URL:</strong> https://localhost:443</p>
+                                        <p><strong>Credentials:</strong> admin/SecretPassword</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="powershell" class="tab-pane">
+                            <h3><i class="fas fa-terminal"></i> PowerShell Deployment</h3>
+                            <p class="deployment-description">
+                                Windows-based deployment automation with comprehensive error handling and configuration management.
+                            </p>
+
+                            <div class="step-section">
+                                <h4>Step 1: Prerequisites</h4>
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <span>PowerShell Prerequisites</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <pre><code class="language-powershell"># Check PowerShell version (requires 5.1 or later)
+$PSVersionTable.PSVersion
+
+# Install required modules
+Install-Module -Name Posh-SSH -Force
+Install-Module -Name VMware.PowerCLI -Force
+
+# Set execution policy
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser</code></pre>
+                                </div>
+                            </div>
+
+                            <div class="step-section">
+                                <h4>Step 2: Configure Deployment</h4>
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <span>Configuration File</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <pre><code class="language-json">{
+  "proxmox": {
+    "api_url": "https://your-proxmox-host:8006/api2/json",
+    "username": "root@pam",
+    "password": "your-password",
+    "node": "your-node-name"
+  },
+  "deployment": {
+    "type": "single-node",
+    "vm_name": "siem-platform",
+    "vm_id": 100,
+    "cores": 32,
+    "memory": 65536,
+    "disk_size": "1000G",
+    "network_bridge": "vmbr0"
+  },
+  "services": {
+    "wazuh_admin_password": "MySecurePassword123!",
+    "graylog_admin_password": "MySecurePassword123!",
+    "grafana_admin_password": "MySecurePassword123!"
+  }
+}</code></pre>
+                                </div>
+                            </div>
+
+                            <div class="step-section">
+                                <h4>Step 3: Single-Node Deployment</h4>
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <span>Single-Node PowerShell Deployment</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <pre><code class="language-powershell"># Navigate to PowerShell deployment directory
+cd "06_Runbooks_and_UX\powershell"
+
+# Run single-node deployment
+.\Deploy-SIEM.ps1 -DeploymentType "single-node" -ConfigFile "single-node\config\single-node-config.json" -Verbose
+
+# Or use the specific single-node script
+cd "single-node"
+.\Deploy-SingleNode.ps1 -ConfigFile "config\single-node-config.json" -WhatIf
+
+# Actual deployment (remove -WhatIf)
+.\Deploy-SingleNode.ps1 -ConfigFile "config\single-node-config.json"</code></pre>
+                                </div>
+                            </div>
+
+                            <div class="step-section">
+                                <h4>Step 4: Multi-Tenant Deployment</h4>
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <span>Multi-Tenant PowerShell Deployment</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <pre><code class="language-powershell"># Multi-tenant deployment
+.\Deploy-SIEM.ps1 -DeploymentType "multi-tenant" -ConfigFile "multi-tenant\config\multi-tenant-config.json" -Verbose
+
+# Or use the specific multi-tenant script
+cd "multi-tenant"
+.\Deploy-MultiTenant.ps1 -ConfigFile "config\multi-tenant-config.json" -TenantCount 3
+
+# Add new tenant to existing deployment
+.\Deploy-MultiTenant.ps1 -ConfigFile "config\multi-tenant-config.json" -AddTenant -TenantName "NewClient"</code></pre>
+                                </div>
+                            </div>
+
+                            <div class="step-section">
+                                <h4>Step 5: Verify and Monitor</h4>
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <span>Deployment Verification</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <pre><code class="language-powershell"># Check deployment status
+.\Deploy-SIEM.ps1 -CheckStatus -ConfigFile "single-node\config\single-node-config.json"
+
+# Get access information
+.\Deploy-SIEM.ps1 -GetAccessInfo -ConfigFile "single-node\config\single-node-config.json"
+
+# Monitor deployment logs
+Get-Content "logs\deployment-$(Get-Date -Format 'yyyy-MM-dd').log" -Wait</code></pre>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="helm" class="tab-pane">
+                            <h3><i class="fas fa-dharmachakra"></i> Helm Charts Deployment</h3>
+                            <p class="deployment-description">
+                                Kubernetes-native deployment using Helm charts for scalable, cloud-native SIEM platform.
+                            </p>
+
+                            <div class="step-section">
+                                <h4>Step 1: Prerequisites</h4>
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <span>Kubernetes and Helm Setup</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <pre><code class="language-bash"># Install Helm
+curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+# Add required Helm repositories
+helm repo add wazuh https://wazuh.github.io/wazuh-helm
+helm repo add graylog https://helm.graylog.org
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo add elastic https://helm.elastic.co
+helm repo add bitnami https://charts.bitnami.com/bitnami
+
+# Update repositories
+helm repo update</code></pre>
+                                </div>
+                            </div>
+
+                            <div class="step-section">
+                                <h4>Step 2: Create Namespace</h4>
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <span>Kubernetes Namespace Setup</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <pre><code class="language-bash"># Create SIEM namespace
+kubectl create namespace siem-platform
+
+# Set as default namespace
+kubectl config set-context --current --namespace=siem-platform
+
+# Create storage class (if needed)
+kubectl apply -f - << EOF
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: fast-ssd
+provisioner: kubernetes.io/no-provisioner
+volumeBindingMode: WaitForFirstConsumer
+EOF</code></pre>
+                                </div>
+                            </div>
+
+                            <div class="step-section">
+                                <h4>Step 3: Deploy SIEM Platform</h4>
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <span>Helm Chart Deployment</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <pre><code class="language-bash"># Navigate to Helm directory
+cd 04_Docker_Helm_Packaging/
+
+# Install dependencies
+helm dependency update
+
+# Deploy SIEM platform
+helm install siem-platform . -f values.yaml --namespace siem-platform
+
+# Check deployment status
+helm status siem-platform --namespace siem-platform
+
+# List all releases
+helm list --namespace siem-platform</code></pre>
+                                </div>
+                            </div>
+
+                            <div class="step-section">
+                                <h4>Step 4: Configure Ingress</h4>
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <span>Ingress Configuration</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <pre><code class="language-yaml"># Apply ingress configuration
+kubectl apply -f - << EOF
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: siem-platform-ingress
+  namespace: siem-platform
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  tls:
+  - hosts:
+    - siem.yourdomain.com
+    secretName: siem-tls
+  rules:
+  - host: siem.yourdomain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana
+            port:
+              number: 80
+      - path: /graylog
+        pathType: Prefix
+        backend:
+          service:
+            name: graylog
+            port:
+              number: 9000
+EOF</code></pre>
+                                </div>
+                            </div>
+
+                            <div class="step-section">
+                                <h4>Step 5: Scale and Monitor</h4>
+                                <div class="code-block">
+                                    <div class="code-header">
+                                        <span>Scaling and Monitoring</span>
+                                        <button class="copy-btn" onclick="copyCode(this)">
+                                            <i class="fas fa-copy"></i>
+                                        </button>
+                                    </div>
+                                    <pre><code class="language-bash"># Scale components
+kubectl scale deployment wazuh-indexer --replicas=5
+kubectl scale deployment graylog --replicas=3
+
+# Monitor pods
+kubectl get pods -w
+
+# Check logs
+kubectl logs -f deployment/wazuh-manager
+kubectl logs -f deployment/graylog
+
+# Upgrade deployment
+helm upgrade siem-platform . -f values.yaml --namespace siem-platform</code></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="configuration" class="section bg-light">
+            <div class="container">
+                <h2><i class="fas fa-cogs"></i> Configuration & Setup</h2>
+                
+                <div class="config-grid">
+                    <div class="config-card">
+                        <div class="config-header">
+                            <i class="fas fa-shield-alt"></i>
+                            <h3>Wazuh Configuration</h3>
+                        </div>
+                        <div class="config-content">
+                            <h4>Manager Configuration</h4>
+                            <div class="code-block">
+                                <div class="code-header">
+                                    <span>ossec.conf</span>
+                                    <button class="copy-btn" onclick="copyCode(this)">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                                <pre><code class="language-xml">&lt;ossec_config&gt;
+  &lt;global&gt;
+    &lt;jsonout_output&gt;yes&lt;/jsonout_output&gt;
+    &lt;alerts_log&gt;yes&lt;/alerts_log&gt;
+    &lt;logall&gt;no&lt;/logall&gt;
+    &lt;logall_json&gt;no&lt;/logall_json&gt;
+    &lt;email_notification&gt;no&lt;/email_notification&gt;
+    &lt;smtp_server&gt;localhost&lt;/smtp_server&gt;
+    &lt;email_from&gt;wazuh@example.com&lt;/email_from&gt;
+    &lt;email_to&gt;admin@example.com&lt;/email_to&gt;
+  &lt;/global&gt;
+
+  &lt;alerts&gt;
+    &lt;log_alert_level&gt;3&lt;/log_alert_level&gt;
+    &lt;email_alert_level&gt;12&lt;/email_alert_level&gt;
+  &lt;/alerts&gt;
+
+  &lt;remote&gt;
+    &lt;connection&gt;syslog&lt;/connection&gt;
+    &lt;port&gt;514&lt;/port&gt;
+    &lt;protocol&gt;udp&lt;/protocol&gt;
+    &lt;allowed-ips&gt;0.0.0.0/0&lt;/allowed-ips&gt;
+  &lt;/remote&gt;
+
+  &lt;remote&gt;
+    &lt;connection&gt;secure&lt;/connection&gt;
+    &lt;port&gt;1514&lt;/port&gt;
+    &lt;protocol&gt;tcp&lt;/protocol&gt;
+    &lt;queue_size&gt;131072&lt;/queue_size&gt;
+  &lt;/remote&gt;
+&lt;/ossec_config&gt;</code></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="config-card">
+                        <div class="config-header">
+                            <i class="fas fa-search"></i>
+                            <h3>Graylog Configuration</h3>
+                        </div>
+                        <div class="config-content">
+                            <h4>Server Configuration</h4>
+                            <div class="code-block">
+                                <div class="code-header">
+                                    <span>graylog.conf</span>
+                                    <button class="copy-btn" onclick="copyCode(this)">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                                <pre><code class="language-properties"># Basic Configuration
+is_master = true
+node_id_file = /etc/graylog/server/node-id
+password_secret = somepasswordpepper
+root_password_sha2 = 8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918
+
+# Network Configuration
+http_bind_address = 0.0.0.0:9000
+http_external_uri = http://localhost:9000/
+
+# Elasticsearch Configuration
+elasticsearch_hosts = http://elasticsearch:9200
+elasticsearch_max_docs_per_index = 20000000
+elasticsearch_max_number_of_indices = 20
+elasticsearch_shards = 4
+elasticsearch_replicas = 0
+
+# MongoDB Configuration
+mongodb_uri = mongodb://mongo:27017/graylog
+
+# Message Processing
+processbuffer_processors = 5
+outputbuffer_processors = 3
+processor_wait_strategy = blocking
+ring_size = 65536
+inputbuffer_ring_size = 65536
+inputbuffer_processors = 2
+inputbuffer_wait_strategy = blocking
+
+# Message Journal
+message_journal_enabled = true
+message_journal_dir = /var/lib/graylog-server/journal</code></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="config-card">
+                        <div class="config-header">
+                            <i class="fas fa-tasks"></i>
+                            <h3>TheHive Configuration</h3>
+                        </div>
+                        <div class="config-content">
+                            <h4>Application Configuration</h4>
+                            <div class="code-block">
+                                <div class="code-header">
+                                    <span>application.conf</span>
+                                    <button class="copy-btn" onclick="copyCode(this)">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                                <pre><code class="language-hocon"># Database Configuration
+db.janusgraph {
+  storage.backend = cassandra
+  storage.hostname = ["cassandra"]
+  storage.cassandra.keyspace = thehive
+  storage.port = 9042
+}
+
+# File Storage
+storage {
+  provider = localfs
+  localfs.location = /opt/thp/thehive/files
+}
+
+# Authentication
+auth {
+  providers = [
+    {name = session}
+    {name = basic, realm = thehive}
+    {name = local}
+  ]
+}
+
+# Cortex Integration
+play.modules.enabled += org.thp.thehive.connector.cortex.CortexModule
+cortex {
+  servers = [
+    {
+      name = local
+      url = "http://cortex:9001"
+      auth {
+        type = "bearer"
+        key = "your-cortex-api-key"
+      }
+    }
+  ]
+}
+
+# MISP Integration
+play.modules.enabled += org.thp.thehive.connector.misp.MispModule
+misp {
+  interval = 1 hour
+  servers = [
+    {
+      name = "local"
+      url = "http://misp"
+      auth {
+        type = key
+        key = "your-misp-api-key"
+      }
+    }
+  ]
+}</code></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="config-card">
+                        <div class="config-header">
+                            <i class="fas fa-chart-line"></i>
+                            <h3>Grafana Configuration</h3>
+                        </div>
+                        <div class="config-content">
+                            <h4>Data Sources Setup</h4>
+                            <div class="code-block">
+                                <div class="code-header">
+                                    <span>datasources.yml</span>
+                                    <button class="copy-btn" onclick="copyCode(this)">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                                <pre><code class="language-yaml">apiVersion: 1
+
+datasources:
+  - name: Elasticsearch-Wazuh
+    type: elasticsearch
+    access: proxy
+    url: http://wazuh-indexer:9200
+    database: "wazuh-alerts-*"
+    basicAuth: true
+    basicAuthUser: admin
+    basicAuthPassword: SecretPassword
+    jsonData:
+      interval: Daily
+      timeField: "@timestamp"
+      esVersion: "7.10.0"
+      maxConcurrentShardRequests: 5
+
+  - name: Elasticsearch-Graylog
+    type: elasticsearch
+    access: proxy
+    url: http://graylog-elasticsearch:9200
+    database: "graylog_*"
+    jsonData:
+      interval: Daily
+      timeField: "@timestamp"
+      esVersion: "7.10.0"
+
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: false
+
+  - name: InfluxDB
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    database: siem_metrics
+    user: admin
+    password: admin</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="advanced" class="section">
+            <div class="container">
+                <h2><i class="fas fa-brain"></i> Advanced Features</h2>
+                
+                <div class="advanced-grid">
+                    <div class="advanced-card">
+                        <div class="advanced-header">
+                            <i class="fas fa-robot"></i>
+                            <h3>Machine Learning Analytics</h3>
+                        </div>
+                        <div class="advanced-content">
+                            <p>Implement advanced anomaly detection using machine learning algorithms for behavioral analysis and threat detection.</p>
+                            
+                            <h4>Anomaly Detection Setup</h4>
+                            <div class="code-block">
+                                <div class="code-header">
+                                    <span>ml_anomaly_detection.py</span>
+                                    <button class="copy-btn" onclick="copyCode(this)">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                                <pre><code class="language-python">#!/usr/bin/env python3
+"""
+SIEM Platform ML Anomaly Detection Module
+"""
+
+import pandas as pd
+import numpy as np
+from sklearn.ensemble import IsolationForest
+from sklearn.preprocessing import StandardScaler
+from elasticsearch import Elasticsearch
+import logging
+
+class SIEMAnomalyDetector:
+    def __init__(self, es_host="localhost", es_port=9200):
+        self.es = Elasticsearch([{'host': es_host, 'port': es_port}])
+        self.scaler = StandardScaler()
+        self.model = IsolationForest(contamination=0.1, random_state=42)
+        
+    def fetch_data(self, index_pattern="wazuh-alerts-*", hours=24):
+        """Fetch recent security events from Elasticsearch"""
+        query = {
+            "query": {
+                "range": {
+                    "@timestamp": {
+                        "gte": f"now-{hours}h"
+                    }
+                }
+            },
+            "size": 10000
+        }
+        
+        response = self.es.search(index=index_pattern, body=query)
+        return response['hits']['hits']
+    
+    def preprocess_data(self, raw_data):
+        """Preprocess security events for ML analysis"""
+        features = []
+        for event in raw_data:
+            source = event['_source']
+            feature_vector = [
+                source.get('rule', {}).get('level', 0),
+                len(source.get('full_log', '')),
+                source.get('agent', {}).get('id', 0),
+                hash(source.get('rule', {}).get('description', '')) % 1000
+            ]
+            features.append(feature_vector)
+        
+        return np.array(features)
+    
+    def detect_anomalies(self, features):
+        """Detect anomalies using Isolation Forest"""
+        # Normalize features
+        features_scaled = self.scaler.fit_transform(features)
+        
+        # Train model and predict anomalies
+        predictions = self.model.fit_predict(features_scaled)
+        anomaly_scores = self.model.decision_function(features_scaled)
+        
+        return predictions, anomaly_scores
+    
+    def run_detection(self):
+        """Main detection workflow"""
+        logging.info("Starting anomaly detection...")
+        
+        # Fetch and preprocess data
+        raw_data = self.fetch_data()
+        features = self.preprocess_data(raw_data)
+        
+        if len(features) == 0:
+            logging.warning("No data available for analysis")
+            return
+        
+        # Detect anomalies
+        predictions, scores = self.detect_anomalies(features)
+        
+        # Process results
+        anomalies = []
+        for i, (pred, score) in enumerate(zip(predictions, scores)):
+            if pred == -1:  # Anomaly detected
+                anomalies.append({
+                    'event_id': raw_data[i]['_id'],
+                    'anomaly_score': score,
+                    'event_data': raw_data[i]['_source']
+                })
+        
+        logging.info(f"Detected {len(anomalies)} anomalies")
+        return anomalies
+
+if __name__ == "__main__":
+    detector = SIEMAnomalyDetector()
+    anomalies = detector.run_detection()
+    
+    for anomaly in anomalies:
+        print(f"Anomaly detected: {anomaly['event_id']} (score: {anomaly['anomaly_score']:.3f})")</code></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="advanced-card">
+                        <div class="advanced-header">
+                            <i class="fas fa-search-plus"></i>
+                            <h3>Threat Hunting Notebooks</h3>
+                        </div>
+                        <div class="advanced-content">
+                            <p>Interactive Jupyter notebooks for advanced threat hunting and investigation workflows.</p>
+                            
+                            <h4>Threat Hunting Setup</h4>
+                            <div class="code-block">
+                                <div class="code-header">
+                                    <span>threat_hunting_notebook.py</span>
+                                    <button class="copy-btn" onclick="copyCode(this)">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                                <pre><code class="language-python">#!/usr/bin/env python3
+"""
+SIEM Platform Threat Hunting Notebook Integration
+"""
+
+import jupyter_client
+import nbformat
+from nbconvert import HTMLExporter
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from elasticsearch import Elasticsearch
+
+class ThreatHuntingNotebook:
+    def __init__(self, es_host="localhost", es_port=9200):
+        self.es = Elasticsearch([{'host': es_host, 'port': es_port}])
+        
+    def create_hunting_notebook(self, hunt_name, description):
+        """Create a new threat hunting notebook"""
+        nb = nbformat.v4.new_notebook()
+        
+        # Add title cell
+        title_cell = nbformat.v4.new_markdown_cell(f"""
+# Threat Hunt: {hunt_name}
+
+**Description:** {description}
+**Created:** {pd.Timestamp.now()}
+**Status:** Active Investigation
+
+## Hypothesis
+[Document your hunting hypothesis here]
+
+## Data Sources
+- Wazuh Security Events
+- Network Logs
+- System Logs
+- Threat Intelligence Feeds
+        """)
+        
+        # Add setup cell
+        setup_cell = nbformat.v4.new_code_cell("""
+# Import required libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from elasticsearch import Elasticsearch
+from datetime import datetime, timedelta
+
+# Configure plotting
+plt.style.use('seaborn')
+sns.set_palette("husl")
+
+# Connect to Elasticsearch
+es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
+
+print("Threat hunting environment initialized")
+        """)
+        
+        # Add data collection cell
+        data_cell = nbformat.v4.new_code_cell("""
+# Define time range for investigation
+end_time = datetime.now()
+start_time = end_time - timedelta(days=7)
+
+# Query security events
+query = {
+    "query": {
+        "bool": {
+            "must": [
+                {
+                    "range": {
+                        "@timestamp": {
+                            "gte": start_time.isoformat(),
+                            "lte": end_time.isoformat()
+                        }
+                    }
+                }
+            ]
+        }
+    },
+    "size": 10000,
+    "sort": [{"@timestamp": {"order": "desc"}}]
+}
+
+# Execute query
+response = es.search(index="wazuh-alerts-*", body=query)
+events = [hit['_source'] for hit in response['hits']['hits']]
+
+print(f"Collected {len(events)} security events for analysis")
+        """)
+        
+        # Add analysis cell
+        analysis_cell = nbformat.v4.new_code_cell("""
+# Convert to DataFrame for analysis
+df = pd.json_normalize(events)
+
+# Basic statistics
+print("Event Distribution by Rule Level:")
+if 'rule.level' in df.columns:
+    print(df['rule.level'].value_counts().sort_index())
+
+# Timeline analysis
+if '@timestamp' in df.columns:
+    df['@timestamp'] = pd.to_datetime(df['@timestamp'])
+    df.set_index('@timestamp', inplace=True)
+    
+    # Plot event timeline
+    plt.figure(figsize=(12, 6))
+    df.resample('1H').size().plot(kind='line')
+    plt.title('Security Events Timeline')
+    plt.xlabel('Time')
+    plt.ylabel('Event Count')
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    plt.show()
+        """)
+        
+        # Add cells to notebook
+        nb.cells = [title_cell, setup_cell, data_cell, analysis_cell]
+        
+        # Save notebook
+        filename = f"threat_hunt_{hunt_name.lower().replace(' ', '_')}.ipynb"
+        with open(filename, 'w') as f:
+            nbformat.write(nb, f)
+        
+        return filename
+    
+    def execute_notebook(self, notebook_path):
+        """Execute a threat hunting notebook"""
+        with open(notebook_path, 'r') as f:
+            nb = nbformat.read(f, as_version=4)
+        
+        # Execute notebook
+        km = jupyter_client.KernelManager()
+        km.start_kernel()
+        kc = km.client()
+        
+        try:
+            for cell in nb.cells:
+                if cell.cell_type == 'code':
+                    kc.execute(cell.source)
+                    
+        finally:
+            km.shutdown_kernel()
+        
+        return nb
+    
+    def export_to_html(self, notebook_path, output_path=None):
+        """Export notebook to HTML report"""
+        with open(notebook_path, 'r') as f:
+            nb = nbformat.read(f, as_version=4)
+        
+        html_exporter = HTMLExporter()
+        (body, resources) = html_exporter.from_notebook_node(nb)
+        
+        if output_path is None:
+            output_path = notebook_path.replace('.ipynb', '.html')
+        
+        with open(output_path, 'w') as f:
+            f.write(body)
+        
+        return output_path
+
+# Example usage
+if __name__ == "__main__":
+    hunter = ThreatHuntingNotebook()
+    
+    # Create new hunting notebook
+    notebook = hunter.create_hunting_notebook(
+        "Lateral Movement Detection",
+        "Hunt for signs of lateral movement using authentication logs and network connections"
+    )
+    
+    print(f"Created threat hunting notebook: {notebook}")
+    
+    # Execute and export
+    executed_nb = hunter.execute_notebook(notebook)
+    html_report = hunter.export_to_html(notebook)
+    
+    print(f"Generated HTML report: {html_report}")</code></pre>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="advanced-card">
+                        <div class="advanced-header">
+                            <i class="fas fa-plug"></i>
+                            <h3>API Integrations</h3>
+                        </div>
+                        <div class="advanced-content">
+                            <p>REST API integrations for external tools like ServiceNow, Slack, and PagerDuty for automated incident response.</p>
+                            
+                            <h4>API Integration Framework</h4>
+                            <div class="code-block">
+                                <div class="code-header">
+                                    <span>rest_api_integration.py</span>
+                                    <button class="copy-btn" onclick="copyCode(this)">
+                                        <i class="fas fa-copy"></i>
+                                    </button>
+                                </div>
+                                <pre><code class="language-python">#!/usr/bin/env python3
+"""
+SIEM Platform REST API Integration Module
+"""
+
+import requests
+import json
+import logging
+from datetime import datetime
+from typing import Dict, List, Optional
+
+class SIEMAPIIntegrator:
+    def __init__(self, config_file="api_config.json"):
+        with open(config_file, 'r') as f:
+            self.config = json.load(f)
+        
+        self.session = requests.Session()
+        self.session.headers.update({
+            'Content-Type': 'application/json',
+            'User-Agent': 'SIEM-Platform/1.0'
+        })
+    
+    def slack_notification(self, channel: str, message: str, severity: str = "info"):
+        """Send notification to Slack"""
+        webhook_url = self.config['slack']['webhook_url']
+        
+        color_map = {
+            "info": "#36a64f",
+            "warning": "#ff9500", 
+            "critical": "#ff0000"
+        }
+        
+        payload = {
+            "channel": channel,
+            "username": "SIEM Platform",
+            "icon_emoji": ":shield:",
+            "attachments": [{
+                "color": color_map.get(severity, "#36a64f"),
+                "title": f"SIEM Alert - {severity.upper()}",
+                "text": message,
+                "timestamp": int(datetime.now().timestamp())
+            }]
+        }
+        
+        try:
+            response = self.session.post(webhook_url, json=payload)
+            response.raise_for_status()
+            logging.info(f"Slack notification sent to {channel}")
+            return True
+        except Exception as e:
+            logging.error(f"Failed to send Slack notification: {e}")
+            return False
+    
+    def servicenow_incident(self, title: str, description: str, priority: int = 3):
+        """Create incident in ServiceNow"""
+        snow_config = self.config['servicenow']
+        url = f"{snow_config['instance_url']}/api/now/table/incident"
+        
+        auth = (snow_config['username'], snow_config['password'])
+        
+        payload = {
+            "short_description": title,
+            "description": description,
+            "priority": priority,
+            "category": "Security",
+            "subcategory": "SIEM Alert",
+            "caller_id": snow_config['caller_id'],
+            "assignment_group": snow_config['assignment_group']
+        }
+        
+        try:
+            response = self.session.post(url, json=payload, auth=auth)
+            response.raise_for_status()
+            
+            incident_data = response.json()
+            incident_number = incident_data['result']['number']
+            
+            logging.info(f"ServiceNow incident created: {incident_number}")
+            return incident_number
+        except Exception as e:
+            logging.error(f"Failed to create ServiceNow incident: {e}")
+            return None
+    
+    def pagerduty_alert(self, title: str, description: str, severity: str = "warning"):
+        """Create alert in PagerDuty"""
+        pd_config = self.config['pagerduty']
+        url = "https://events.pagerduty.com/v2/enqueue"
+        
+        payload = {
+            "routing_key": pd_config['integration_key'],
+            "event_action": "trigger",
+            "payload": {
+                "summary": title,
+                "source": "SIEM Platform",
+                "severity": severity,
+                "component": "Security Monitoring",
+                "group": "SOC",
+                "class": "Security Alert",
+                "custom_details": {
+                    "description": description,
+                    "timestamp": datetime.now().isoformat()
+                }
+            }
+        }
+        
+        try:
+            response = self.session.post(url, json=payload)
+            response.raise_for_status()
+            
+            result = response.json()
+            dedup_key = result.get('dedup_key')
+            
+            logging.info(f"PagerDuty alert created: {dedup_key}")
+            return dedup_key
+        except Exception as e:
+            logging.error(f"Failed to create PagerDuty alert: {e}")
+            return None
+    
+    def process_security_alert(self, alert_data: Dict):
+        """Process security alert and trigger integrations"""
+        rule_level = alert_data.get('rule', {}).get('level', 0)
+        rule_description = alert_data.get('rule', {}).get('description', 'Unknown')
+        agent_name = alert_data.get('agent', {}).get('name', 'Unknown')
+        
+        title = f"Security Alert: {rule_description}"
+        description = f"""
+        Alert Details:
+        - Rule Level: {rule_level}
+        - Agent: {agent_name}
+        - Description: {rule_description}
+        - Timestamp: {alert_data.get('@timestamp', 'Unknown')}
+        
+        Full Log: {alert_data.get('full_log', 'N/A')}
+        """
+        
+        # Determine severity and actions based on rule level
+        if rule_level >= 12:  # Critical
+            severity = "critical"
+            
+            # Send to all channels for critical alerts
+            self.slack_notification("#security-alerts", description, severity)
+            self.servicenow_incident(title, description, priority=1)
+            self.pagerduty_alert(title, description, severity="critical")
+            
+        elif rule_level >= 7:  # High
+            severity = "warning"
+            
+            self.slack_notification("#security-alerts", description, severity)
+            self.servicenow_incident(title, description, priority=2)
+            
+        elif rule_level >= 4:  # Medium
+            severity = "info"
+            
+            self.slack_notification("#security-monitoring", description, severity)
+        
+        logging.info(f"Processed alert with level {rule_level}")
+    
+    def webhook_handler(self, request_data: Dict):
+        """Handle incoming webhook from SIEM components"""
+        try:
+            # Parse alert data
+            if 'alerts' in request_data:
+                for alert in request_data['alerts']:
+                    self.process_security_alert(alert)
+            else:
+                self.process_security_alert(request_data)
+            
+            return {"status": "success", "message": "Alert processed"}
+        except Exception as e:
+            logging.error(f"Error processing webhook: {e}")
+            return {"status": "error", "message": str(e)}
+
+# Example configuration file (api_config.json)
+example_config = {
+    "slack": {
+        "webhook_url": "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK"
+    },
+    "servicenow": {
+        "instance_url": "https://your-instance.service-now.com",
+        "username": "siem_integration",
+        "password": "your-password",
+        "caller_id": "siem.platform@company.com",
+        "assignment_group": "SOC Team"
+    },
+    "pagerduty": {
+        "integration_key": "your-pagerduty-integration-key"
+    }
+}
+
+if __name__ == "__main__":
+    # Example usage
+    integrator = SIEMAPIIntegrator()
+    
+    # Example alert
+    sample_alert = {
+        "rule": {"level": 10, "description": "Multiple authentication failures"},
+        "agent": {"name": "web-server-01"},
+        "@timestamp": datetime.now().isoformat(),
+        "full_log": "Failed login attempt from suspicious IP"
+    }
+    
+    integrator.process_security_alert(sample_alert)</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="support" class="section bg-light">
+            <div class="container">
+                <h2><i class="fas fa-life-ring"></i> Support & Resources</h2>
+                
+                <div class="support-grid">
+                    <div class="support-card">
+                        <div class="support-icon">
+                            <i class="fas fa-book"></i>
+                        </div>
+                        <h3>Documentation</h3>
+                        <p>Comprehensive guides and documentation for all platform components.</p>
+                        <ul>
+                            <li><a href="#" target="_blank">Installation Guide</a></li>
+                            <li><a href="#" target="_blank">Configuration Reference</a></li>
+                            <li><a href="#" target="_blank">API Documentation</a></li>
+                            <li><a href="#" target="_blank">Troubleshooting Guide</a></li>
+                        </ul>
+                    </div>
+                    
+                    <div class="support-card">
+                        <div class="support-icon">
+                            <i class="fas fa-tools"></i>
+                        </div>
+                        <h3>Troubleshooting</h3>
+                        <p>Common issues and solutions for SIEM platform deployment and operation.</p>
+                        <div class="troubleshooting-section">
+                            <h4>Common Issues</h4>
+                            <div class="issue-item">
+                                <strong>Service Connection Errors</strong>
+                                <div class="code-block small">
+                                    <pre><code class="language-bash"># Check service status
+systemctl status wazuh-manager
+systemctl status graylog-server
+
+# Check network connectivity
+telnet graylog-host 9000
+telnet elasticsearch-host 9200</code></pre>
+                                </div>
+                            </div>
+                            
+                            <div class="issue-item">
+                                <strong>Elasticsearch Memory Issues</strong>
+                                <div class="code-block small">
+                                    <pre><code class="language-bash"># Adjust JVM heap size
+echo "ES_JAVA_OPTS=\"-Xms4g -Xmx4g\"" >> /etc/default/elasticsearch
+systemctl restart elasticsearch</code></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="support-card">
+                        <div class="support-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <h3>Community</h3>
+                        <p>Connect with the SIEM platform community for support and collaboration.</p>
+                        <ul>
+                            <li><a href="#" target="_blank">GitHub Repository</a></li>
+                            <li><a href="#" target="_blank">Discord Community</a></li>
+                            <li><a href="#" target="_blank">Stack Overflow</a></li>
+                            <li><a href="#" target="_blank">Reddit Community</a></li>
+                        </ul>
+                    </div>
+                    
+                    <div class="support-card">
+                        <div class="support-icon">
+                            <i class="fas fa-download"></i>
+                        </div>
+                        <h3>Downloads</h3>
+                        <p>Download the complete SIEM platform package and additional resources.</p>
+                        <div class="download-buttons">
+                            <a href="#" class="btn btn-primary" download>
+                                <i class="fas fa-download"></i> Complete Package
+                            </a>
+                            <a href="#" class="btn btn-secondary" download>
+                                <i class="fas fa-file-code"></i> Source Code
+                            </a>
+                            <a href="#" class="btn btn-secondary" download>
+                                <i class="fas fa-file-pdf"></i> PDF Guide
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="contact-section">
+                    <h3><i class="fas fa-envelope"></i> Contact Support</h3>
+                    <p>Need additional help? Contact our support team for assistance with deployment and configuration.</p>
+                    <div class="contact-info">
+                        <div class="contact-item">
+                            <i class="fas fa-envelope"></i>
+                            <span>support@siem-platform.com</span>
+                        </div>
+                        <div class="contact-item">
+                            <i class="fas fa-phone"></i>
+                            <span>+1 (555) 123-4567</span>
+                        </div>
+                        <div class="contact-item">
+                            <i class="fas fa-clock"></i>
+                            <span>24/7 Support Available</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4><i class="fas fa-shield-alt"></i> SIEM Platform</h4>
+                    <p>World's best open-source SIEM platform for enterprise security monitoring.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="#overview">Overview</a></li>
+                        <li><a href="#architecture">Architecture</a></li>
+                        <li><a href="#deployment">Deployment</a></li>
+                        <li><a href="#configuration">Configuration</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="#support">Documentation</a></li>
+                        <li><a href="#support">Community</a></li>
+                        <li><a href="#support">Support</a></li>
+                        <li><a href="#support">Downloads</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h4>Connect</h4>
+                    <div class="social-links">
+                        <a href="#" target="_blank"><i class="fab fa-github"></i></a>
+                        <a href="#" target="_blank"><i class="fab fa-discord"></i></a>
+                        <a href="#" target="_blank"><i class="fab fa-twitter"></i></a>
+                        <a href="#" target="_blank"><i class="fab fa-linkedin"></i></a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 SIEM Platform. Open Source Security Monitoring Solution.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <script src="js/script.js"></script>
+</body>
+</html>
+

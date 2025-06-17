@@ -1,0 +1,320 @@
+---
+# Ansible Playbook for Graylog Installation and Configuration
+
+- name: Install and Configure Graylog
+  hosts: graylog_servers
+  become: yes
+  vars:
+    graylog_version: "5.2"
+    graylog_major_version: "5.2"
+    graylog_port: 9000
+    graylog_api_port: 9000
+    graylog_input_port: 12201
+    graylog_syslog_port: 1514
+    graylog_beats_port: 5044
+    graylog_admin_username: "admin"
+    graylog_admin_password: "{{ graylog_admin_password | default('admin') }}"
+    graylog_password_secret: "{{ graylog_password_secret | default('somepasswordpepper') }}"
+    graylog_root_password_sha2: "{{ graylog_admin_password | password_hash('sha256') }}"
+    graylog_mongodb_uri: "mongodb://{{ groups['mongodb_servers'][0] if groups['mongodb_servers'] is defined else 'localhost' }}:27017/graylog"
+    graylog_elasticsearch_hosts: "http://{{ groups['wazuh_indexers'][0] if groups['wazuh_indexers'] is defined else 'localhost' }}:9200"
+    graylog_heap_size: "{{ (ansible_memtotal_mb * 0.5) | int }}m"
+    graylog_data_dir: "/var/lib/graylog-server"
+    graylog_log_dir: "/var/log/graylog-server"
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - curl
+          - apt-transport-https
+          - openjdk-11-jre-headless
+          - uuid-runtime
+          - pwgen
+        state: present
+
+    - name: Set JAVA_HOME environment variable
+      lineinfile:
+        path: /etc/environment
+        line: 'JAVA_HOME="/usr/lib/jvm/java-11-openjdk-amd64"'
+        create: yes
+
+    - name: Add Graylog GPG key
+      apt_key:
+        url: https://packages.graylog2.org/repo/debian/keyring.gpg
+        state: present
+
+    - name: Add Graylog repository
+      apt_repository:
+        repo: "deb https://packages.graylog2.org/repo/debian/ stable {{ graylog_major_version }}"
+        state: present
+        filename: graylog
+
+    - name: Update apt cache after adding repository
+      apt:
+        update_cache: yes
+
+    - name: Install Graylog server
+      apt:
+        name: graylog-server
+        state: present
+
+    - name: Create Graylog data directory
+      file:
+        path: "{{ graylog_data_dir }}"
+        state: directory
+        owner: graylog
+        group: graylog
+        mode: '0755'
+
+    - name: Create Graylog log directory
+      file:
+        path: "{{ graylog_log_dir }}"
+        state: directory
+        owner: graylog
+        group: graylog
+        mode: '0755'
+
+    - name: Generate password secret if not provided
+      shell: pwgen -N 1 -s 96
+      register: generated_password_secret
+      when: graylog_password_secret == 'somepasswordpepper'
+
+    - name: Set password secret
+      set_fact:
+        graylog_password_secret: "{{ generated_password_secret.stdout }}"
+      when: generated_password_secret is defined and generated_password_secret.stdout is defined
+
+    - name: Generate root password hash
+      shell: echo -n "{{ graylog_admin_password }}" | sha256sum | cut -d" " -f1
+      register: root_password_hash
+
+    - name: Configure Graylog server
+      template:
+        src: graylog.conf.j2
+        dest: /etc/graylog/server/server.conf
+        owner: graylog
+        group: graylog
+        mode: '0644'
+        backup: yes
+      notify: restart graylog-server
+
+    - name: Configure Graylog JVM options
+      template:
+        src: graylog-jvm.options.j2
+        dest: /etc/default/graylog-server
+        owner: root
+        group: root
+        mode: '0644'
+        backup: yes
+      notify: restart graylog-server
+
+    - name: Configure firewall for Graylog
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+        proto: tcp
+      loop:
+        - "{{ graylog_port }}"
+        - "{{ graylog_input_port }}"
+        - "{{ graylog_syslog_port }}"
+        - "{{ graylog_beats_port }}"
+
+    - name: Enable and start Graylog service
+      systemd:
+        name: graylog-server
+        enabled: yes
+        state: started
+        daemon_reload: yes
+
+    - name: Wait for Graylog to be ready
+      wait_for:
+        port: "{{ graylog_port }}"
+        host: "{{ ansible_default_ipv4.address }}"
+        delay: 30
+        timeout: 300
+
+    - name: Check Graylog API health
+      uri:
+        url: "http://{{ ansible_default_ipv4.address }}:{{ graylog_api_port }}/api/system"
+        method: GET
+        user: "{{ graylog_admin_username }}"
+        password: "{{ graylog_admin_password }}"
+        force_basic_auth: yes
+        status_code: 200
+      register: graylog_health
+      retries: 5
+      delay: 10
+
+    - name: Create Graylog inputs
+      uri:
+        url: "http://{{ ansible_default_ipv4.address }}:{{ graylog_api_port }}/api/system/inputs"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+          X-Requested-By: "ansible"
+        body_format: json
+        body:
+          title: "{{ item.title }}"
+          type: "{{ item.type }}"
+          configuration: "{{ item.configuration }}"
+          global: true
+        user: "{{ graylog_admin_username }}"
+        password: "{{ graylog_admin_password }}"
+        force_basic_auth: yes
+        status_code: [201, 400]
+      loop:
+        - title: "GELF UDP"
+          type: "org.graylog2.inputs.gelf.udp.GELFUDPInput"
+          configuration:
+            bind_address: "0.0.0.0"
+            port: "{{ graylog_input_port }}"
+            recv_buffer_size: 262144
+        - title: "Syslog UDP"
+          type: "org.graylog2.inputs.syslog.udp.SyslogUDPInput"
+          configuration:
+            bind_address: "0.0.0.0"
+            port: "{{ graylog_syslog_port }}"
+            recv_buffer_size: 262144
+        - title: "Beats"
+          type: "org.graylog.plugins.beats.BeatsInput"
+          configuration:
+            bind_address: "0.0.0.0"
+            port: "{{ graylog_beats_port }}"
+            recv_buffer_size: 1048576
+
+    - name: Create Graylog streams for tenant isolation
+      uri:
+        url: "http://{{ ansible_default_ipv4.address }}:{{ graylog_api_port }}/api/streams"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+          X-Requested-By: "ansible"
+        body_format: json
+        body:
+          title: "Tenant {{ tenant_id | default('default') }} Stream"
+          description: "Stream for tenant {{ tenant_id | default('default') }}"
+          rules:
+            - field: "tenant_id"
+              type: 1
+              value: "{{ tenant_id | default('default') }}"
+              inverted: false
+          matching_type: "AND"
+          remove_matches_from_default_stream: true
+        user: "{{ graylog_admin_username }}"
+        password: "{{ graylog_admin_password }}"
+        force_basic_auth: yes
+        status_code: [201, 400]
+      when: tenant_id is defined
+
+    - name: Install Graylog content packs
+      copy:
+        src: "{{ item }}"
+        dest: /tmp/
+        mode: '0644'
+      with_fileglob:
+        - "files/content-packs/*.json"
+      register: content_packs
+
+    - name: Import Graylog content packs
+      uri:
+        url: "http://{{ ansible_default_ipv4.address }}:{{ graylog_api_port }}/api/system/content_packs"
+        method: POST
+        headers:
+          Content-Type: "application/json"
+          X-Requested-By: "ansible"
+        body: "{{ lookup('file', item.dest) }}"
+        body_format: json
+        user: "{{ graylog_admin_username }}"
+        password: "{{ graylog_admin_password }}"
+        force_basic_auth: yes
+        status_code: [201, 400]
+      loop: "{{ content_packs.results }}"
+      when: content_packs.results is defined
+
+    - name: Configure log rotation for Graylog
+      copy:
+        content: |
+          {{ graylog_log_dir }}/*.log {
+              daily
+              rotate 30
+              compress
+              delaycompress
+              missingok
+              notifempty
+              create 644 graylog graylog
+              postrotate
+                  systemctl reload graylog-server
+              endscript
+          }
+        dest: /etc/logrotate.d/graylog-server
+        mode: '0644'
+
+    - name: Create Graylog backup script
+      copy:
+        content: |
+          #!/bin/bash
+          # Graylog backup script
+          
+          BACKUP_DIR="/opt/graylog-backups"
+          DATE=$(date +%Y%m%d_%H%M%S)
+          BACKUP_FILE="graylog-backup-${DATE}.tar.gz"
+          
+          mkdir -p ${BACKUP_DIR}
+          
+          # Backup Graylog configuration and data
+          tar -czf ${BACKUP_DIR}/${BACKUP_FILE} \
+              /etc/graylog/ \
+              {{ graylog_data_dir }}/ \
+              --exclude={{ graylog_log_dir }}/
+          
+          # Remove old backups (keep last 7 days)
+          find ${BACKUP_DIR} -name "graylog-backup-*.tar.gz" -mtime +7 -delete
+          
+          echo "Backup completed: ${BACKUP_DIR}/${BACKUP_FILE}"
+        dest: /opt/graylog-backup.sh
+        mode: '0755'
+
+    - name: Schedule Graylog backup
+      cron:
+        name: "Graylog backup"
+        minute: "15"
+        hour: "3"
+        job: "/opt/graylog-backup.sh"
+        user: root
+
+    - name: Create Graylog monitoring script
+      copy:
+        content: |
+          #!/bin/bash
+          # Graylog monitoring script
+          
+          GRAYLOG_URL="http://{{ ansible_default_ipv4.address }}:{{ graylog_api_port }}"
+          
+          # Check Graylog API
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+                      -u {{ graylog_admin_username }}:{{ graylog_admin_password }} \
+                      "${GRAYLOG_URL}/api/system")
+          
+          if [ "$HTTP_CODE" -eq 200 ]; then
+              echo "OK: Graylog API is responding"
+              exit 0
+          else
+              echo "CRITICAL: Graylog API returned HTTP $HTTP_CODE"
+              exit 2
+          fi
+        dest: /opt/check-graylog.sh
+        mode: '0755'
+
+  handlers:
+    - name: restart graylog-server
+      systemd:
+        name: graylog-server
+        state: restarted
+        daemon_reload: yes
+

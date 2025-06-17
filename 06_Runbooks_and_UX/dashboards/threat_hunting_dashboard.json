@@ -1,0 +1,486 @@
+{
+  "version": "1.0.0",
+  "title": "SIEM Platform Threat Hunting Dashboard",
+  "description": "Advanced analytics and threat hunting dashboard for security investigators",
+  "tags": ["threat-hunting", "analytics", "investigation"],
+  "time": {
+    "from": "now-7d",
+    "to": "now"
+  },
+  "refresh": "1m",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Anomaly Detection Timeline",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "ml_anomaly_score",
+          "legendFormat": "Anomaly Score",
+          "refId": "A"
+        },
+        {
+          "expr": "ml_anomaly_threshold",
+          "legendFormat": "Threshold",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "fillOpacity": 20,
+            "thresholdsStyle": {
+              "mode": "line"
+            }
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 0.8
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "User Behavior Analytics",
+      "type": "heatmap",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "user_activity_score by (user, hour)",
+          "legendFormat": "{{user}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false
+            },
+            "scaleDistribution": {
+              "type": "linear"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Network Connection Graph",
+      "type": "nodeGraph",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "targets": [
+        {
+          "expr": "network_connections_graph",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "vis": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Suspicious Process Execution",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "targets": [
+        {
+          "expr": "suspicious_processes",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "displayMode": "table",
+            "inspect": false
+          }
+        }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "process_name": "Process",
+              "command_line": "Command Line",
+              "user": "User",
+              "host": "Host",
+              "risk_score": "Risk Score",
+              "timestamp": "Time"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "DNS Query Analysis",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "targets": [
+        {
+          "expr": "topk(20, dns_queries_suspicious)",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "displayMode": "table"
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "File Access Patterns",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 0,
+        "y": 24
+      },
+      "targets": [
+        {
+          "expr": "rate(file_access_events[5m]) by (file_type)",
+          "legendFormat": "{{file_type}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Privilege Escalation Attempts",
+      "type": "stat",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 24
+      },
+      "targets": [
+        {
+          "expr": "sum(privilege_escalation_attempts)",
+          "legendFormat": "Total Attempts",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(privilege_escalation_successful)",
+          "legendFormat": "Successful",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5
+              },
+              {
+                "color": "red",
+                "value": 10
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Data Exfiltration Indicators",
+      "type": "gauge",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 24
+      },
+      "targets": [
+        {
+          "expr": "data_exfiltration_risk_score",
+          "legendFormat": "Risk Score",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 50
+              },
+              {
+                "color": "red",
+                "value": 75
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Lateral Movement Detection",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 30
+      },
+      "targets": [
+        {
+          "expr": "lateral_movement_score by (source_host, dest_host)",
+          "legendFormat": "{{source_host}} -> {{dest_host}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Threat Intelligence Matches",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 30
+      },
+      "targets": [
+        {
+          "expr": "threat_intel_matches",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "displayMode": "table"
+          }
+        }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "indicator": "Indicator",
+              "type": "Type",
+              "confidence": "Confidence",
+              "source": "Intel Source",
+              "first_seen": "First Seen",
+              "last_seen": "Last Seen"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "title": "Custom Hunt Query Results",
+      "type": "logs",
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 38
+      },
+      "targets": [
+        {
+          "expr": "{job=\"custom-hunt\"} |= \"$hunt_query\"",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "tenant",
+        "type": "query",
+        "query": "label_values(tenant)",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "multi": false
+      },
+      {
+        "name": "user",
+        "type": "query",
+        "query": "label_values(user)",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "multi": true
+      },
+      {
+        "name": "host",
+        "type": "query",
+        "query": "label_values(host)",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "multi": true
+      },
+      {
+        "name": "hunt_query",
+        "type": "textbox",
+        "query": "",
+        "current": {
+          "selected": false,
+          "text": "",
+          "value": ""
+        }
+      },
+      {
+        "name": "anomaly_threshold",
+        "type": "custom",
+        "query": "0.5,0.6,0.7,0.8,0.9",
+        "current": {
+          "selected": false,
+          "text": "0.8",
+          "value": "0.8"
+        }
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "name": "Anomaly Events",
+        "datasource": "prometheus",
+        "enable": true,
+        "expr": "ml_anomaly_detected > 0",
+        "iconColor": "orange",
+        "titleFormat": "Anomaly Detected: {{anomaly_type}}"
+      },
+      {
+        "name": "Threat Intel Hits",
+        "datasource": "prometheus",
+        "enable": true,
+        "expr": "threat_intel_hit > 0",
+        "iconColor": "red",
+        "titleFormat": "Threat Intel Match: {{indicator}}"
+      },
+      {
+        "name": "Investigation Milestones",
+        "datasource": "prometheus",
+        "enable": true,
+        "expr": "investigation_milestone",
+        "iconColor": "blue",
+        "titleFormat": "Investigation: {{milestone}}"
+      }
+    ]
+  }
+}
+

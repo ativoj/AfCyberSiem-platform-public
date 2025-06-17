@@ -1,0 +1,440 @@
+{
+  "version": "1.0.0",
+  "title": "SIEM Platform Security Operations Center (SOC) Dashboard",
+  "description": "Operational dashboard for security analysts and SOC teams",
+  "tags": ["soc", "operations", "security-monitoring"],
+  "time": {
+    "from": "now-4h",
+    "to": "now"
+  },
+  "refresh": "30s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Real-time Alert Feed",
+      "type": "logs",
+      "gridPos": {
+        "h": 12,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "{job=\"wazuh-alerts\"} |= \"alert\"",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": false,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      }
+    },
+    {
+      "id": 2,
+      "title": "Alert Severity Distribution",
+      "type": "piechart",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "sum by (severity) (security_alerts_total)",
+          "legendFormat": "{{severity}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "System Health Status",
+      "type": "stat",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "up{job=\"wazuh-manager\"}",
+          "legendFormat": "Wazuh Manager",
+          "refId": "A"
+        },
+        {
+          "expr": "up{job=\"graylog\"}",
+          "legendFormat": "Graylog",
+          "refId": "B"
+        },
+        {
+          "expr": "up{job=\"elasticsearch\"}",
+          "legendFormat": "Elasticsearch",
+          "refId": "C"
+        },
+        {
+          "expr": "up{job=\"thehive\"}",
+          "legendFormat": "TheHive",
+          "refId": "D"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green"
+                }
+              },
+              "type": "value"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Alert Volume Trends",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 8,
+        "y": 6
+      },
+      "targets": [
+        {
+          "expr": "rate(security_alerts_total[5m])",
+          "legendFormat": "Alert Rate",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(security_alerts_critical[5m])",
+          "legendFormat": "Critical Alerts",
+          "refId": "B"
+        },
+        {
+          "expr": "rate(security_alerts_high[5m])",
+          "legendFormat": "High Alerts",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "fillOpacity": 10
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Log Ingestion Rate",
+      "type": "gauge",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 6
+      },
+      "targets": [
+        {
+          "expr": "rate(log_messages_total[1m])",
+          "legendFormat": "Messages/sec",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 10000,
+          "thresholds": {
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 5000
+              },
+              {
+                "color": "red",
+                "value": 8000
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Active Investigations",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "targets": [
+        {
+          "expr": "thehive_cases_open",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "displayMode": "table",
+            "inspect": false
+          }
+        }
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "case_id": "Case ID",
+              "title": "Title",
+              "severity": "Severity",
+              "status": "Status",
+              "assignee": "Assignee",
+              "created": "Created"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Top Source IPs",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 12
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (source_ip) (security_events_total))",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "displayMode": "table"
+          }
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Top Destination Ports",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 12
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (dest_port) (network_connections_total))",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "displayMode": "table"
+          }
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Failed Login Attempts",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "targets": [
+        {
+          "expr": "rate(failed_logins_total[5m])",
+          "legendFormat": "Failed Logins/min",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "fillOpacity": 20
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Malware Detection Events",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "targets": [
+        {
+          "expr": "rate(malware_detections_total[5m])",
+          "legendFormat": "Malware Detections/min",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "fillOpacity": 20
+          },
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Network Traffic Analysis",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "targets": [
+        {
+          "expr": "rate(network_bytes_total[5m])",
+          "legendFormat": "Network Bytes/sec",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(network_packets_total[5m])",
+          "legendFormat": "Network Packets/sec",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "fillOpacity": 10
+          }
+        }
+      }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "tenant",
+        "type": "query",
+        "query": "label_values(tenant)",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "multi": false
+      },
+      {
+        "name": "severity",
+        "type": "custom",
+        "query": "critical,high,medium,low",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "multi": true
+      },
+      {
+        "name": "source_ip",
+        "type": "query",
+        "query": "label_values(source_ip)",
+        "current": {
+          "selected": false,
+          "text": "All",
+          "value": "$__all"
+        },
+        "includeAll": true,
+        "multi": true
+      }
+    ]
+  },
+  "annotations": {
+    "list": [
+      {
+        "name": "Critical Alerts",
+        "datasource": "prometheus",
+        "enable": true,
+        "expr": "security_alerts_critical > 0",
+        "iconColor": "red",
+        "titleFormat": "Critical Alert: {{alert_name}}"
+      },
+      {
+        "name": "System Maintenance",
+        "datasource": "prometheus",
+        "enable": true,
+        "expr": "system_maintenance_events",
+        "iconColor": "blue",
+        "titleFormat": "Maintenance: {{maintenance_type}}"
+      }
+    ]
+  }
+}
+
